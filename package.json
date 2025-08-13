@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server/main-server.js",
-    "dev": "nodemon server/main-server.js"
+    "dev": "nodemon server/main-server.js",
+    "bot": "node server/bot-standalone.js"
   },
   "engines": {
     "node": ">=20"
