@@ -10,6 +10,15 @@ const adminId = process.env.ADMIN_TELEGRAM_ID ? Number(process.env.ADMIN_TELEGRA
 
 function isAdmin(userId) { return adminId && Number(userId) === adminId; }
 
+function escapeHtml(s) {
+	return String(s || '')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#039;');
+}
+
 function formatEventCard(evt) {
 	const d = new Date(evt.startsAt);
 	return [
@@ -66,6 +75,10 @@ export async function ensureBot(app) {
 	botInstance = bot;
 	bot.use(session());
 
+	bot.catch((err, ctx) => {
+		console.error('[bot] error', err);
+	});
+
 	bot.start(async (ctx) => {
 		await ctx.reply(
 			'🍷 Добро пожаловать в клуб "Наша мафия" 🎭\n\n' +
@@ -108,9 +121,9 @@ export async function ensureBot(app) {
 		const lines = (evt.registrations || []).map(r => {
 			const profileLink = r.username ? `https://t.me/${r.username}` : null;
 			const display = `${r.username ? '@'+r.username : (r.firstName||r.userId)} (${r.firstName||''})`;
-			return profileLink ? `[${display}](${profileLink})` : display;
+			return profileLink ? `<a href="${escapeHtml(profileLink)}">${escapeHtml(display)}</a>` : escapeHtml(display);
 		});
-		await ctx.replyWithMarkdownV2(lines.length ? lines.join('\n') : 'Пока никого');
+		await ctx.replyWithHTML(lines.length ? lines.join('<br/>') : 'Пока никого');
 		await ctx.answerCbQuery();
 	});
 
@@ -200,7 +213,13 @@ export async function ensureBot(app) {
 		await ctx.reply('Роли разосланы.');
 	});
 
+	try {
+		await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+	} catch (e) {
+		console.warn('[bot] deleteWebhook warning:', e.message);
+	}
 	await bot.launch();
+	console.log('[bot] launched via long polling');
 	process.once('SIGINT', () => bot.stop('SIGINT'));
 	process.once('SIGTERM', () => bot.stop('SIGTERM'));
 	return bot;
