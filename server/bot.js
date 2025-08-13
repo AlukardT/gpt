@@ -80,6 +80,8 @@ export async function ensureBot(app) {
 	});
 
 	bot.start(async (ctx) => {
+		// Force remove any persistent reply keyboard
+		await ctx.reply(' ', Markup.removeKeyboard());
 		await ctx.reply(
 			'🍷 Добро пожаловать в клуб "Наша мафия" 🎭\n\n' +
 			'Здесь мы собираемся, чтобы весело провести время за любимой игрой, вкусной едой и в компании приятных людей.\n\n' +
@@ -179,7 +181,8 @@ export async function ensureBot(app) {
 			profile.avatarFileId = fileId;
 			await stateStore.saveProfile(profile);
 			ctx.session = {};
-			return ctx.reply('Регистрация завершена! ✅', mainInlineMenu());
+			await ctx.reply('Регистрация завершена! ✅');
+			return ctx.reply('Выберите действие:', mainInlineMenu());
 		}
 		return next();
 	});
