@@ -41,15 +41,15 @@ function formatEventCard(evt) {
 	].join('\n');
 }
 
-function mainMenuKeyboard() {
-	return Markup.keyboard([
-		['Афиши', 'Профиль']
-	]).resize();
+function mainInlineMenu() {
+	return Markup.inlineKeyboard([
+		[Markup.button.callback('Афиши', 'menu:afisha'), Markup.button.callback('Профиль', 'menu:profile')]
+	]);
 }
 
 async function renderEventMessage(ctx, idx = 0) {
 	const events = await stateStore.listEventsSorted();
-	if (events.length === 0) return ctx.reply('Нет ближайших ивентов.', mainMenuKeyboard());
+	if (events.length === 0) return ctx.reply('Нет ближайших ивентов.', mainInlineMenu());
 	idx = Math.min(Math.max(0, idx), events.length - 1);
 	const evt = events[idx];
 	const regCount = (evt.registrations || []).reduce((acc, r) => acc + (Number(r.slots) || 1), 0);
@@ -94,13 +94,14 @@ export async function ensureBot(app) {
 			' • Лёгкая, ненапряжная атмосфера.\n' +
 			' • Яркие впечатления, которые запомнятся.\n\n' +
 			'💌 Жми кнопку "Записаться на игру" и бронируй своё место за столом!',
-			mainMenuKeyboard()
+			mainInlineMenu()
 		);
 	});
 
-	// Menu entries
-	bot.hears('Афиши', async (ctx) => renderEventMessage(ctx, 0));
-	bot.hears('Профиль', async (ctx) => {
+	// Menu entries via inline buttons
+	bot.action('menu:afisha', async (ctx) => { await ctx.answerCbQuery(); return renderEventMessage(ctx, 0); });
+	bot.action('menu:profile', async (ctx) => {
+		await ctx.answerCbQuery();
 		const profile = await stateStore.getOrCreateProfile({ userId: ctx.from.id, username: ctx.from.username, firstName: ctx.from.first_name });
 		const name = profile.nickname || profile.username || '-';
 		await ctx.reply(`Профиль:\nПсевдоним: ${name}\nИмя: ${profile.realName || profile.firstName || '-'}\nПобед: ${profile.wins || 0}`);
@@ -178,7 +179,7 @@ export async function ensureBot(app) {
 			profile.avatarFileId = fileId;
 			await stateStore.saveProfile(profile);
 			ctx.session = {};
-			return ctx.reply('Регистрация завершена! ✅', mainMenuKeyboard());
+			return ctx.reply('Регистрация завершена! ✅', mainInlineMenu());
 		}
 		return next();
 	});
