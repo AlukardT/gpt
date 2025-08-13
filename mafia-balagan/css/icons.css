@@ -1,0 +1,11 @@
+.seat { position: relative; width: 128px; height: 128px; border-radius: 10px; overflow: hidden; margin: 6px; background: #1b2430; display: inline-block; }
+.seat img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(1.1); }
+.seat .badge { position: absolute; top: 4px; right: 6px; background: rgba(0,0,0,0.6); color: #fff; padding: 2px 6px; border-radius: 10px; font-size: 12px; }
+
+.role-border-mafia { box-shadow: inset 0 0 0 3px #e11d48; }
+.role-border-civil { box-shadow: inset 0 0 0 3px #22c55e; }
+.role-border-neutral { box-shadow: inset 0 0 0 3px #fbbf24; }
+.role-border-werewolf { box-shadow: inset 0 0 0 3px #06b6d4; }
+
+.seat.dead { filter: grayscale(1) brightness(0.6); }
+.seat.jailed::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.15) 0 6px, transparent 6px 12px); }
