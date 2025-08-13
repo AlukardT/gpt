@@ -80,6 +80,11 @@ class StateStore {
 		this._latestSession = null;
 	}
 
+	async listEventsSorted() {
+		const events = await loadEvents();
+		return [...events].sort((a, b) => (a.startsAt || 0) - (b.startsAt || 0));
+	}
+
 	async getNextEvent() {
 		const events = await loadEvents();
 		const now = Date.now();
@@ -94,13 +99,15 @@ class StateStore {
 		return events.find(e => e.id === id) || null;
 	}
 
-	async createEvent({ title, startsAt }) {
+	async createEvent({ title, startsAt, locationTitle, address }) {
 		const events = await loadEvents();
 		const event = {
 			id: generateId('evt'),
 			title: title || 'Игра',
 			startsAt: startsAt ? Number(startsAt) : Date.now() + 24 * 3600 * 1000,
 			createdAt: Date.now(),
+			locationTitle: locationTitle || 'Наш Бар',
+			address: address || 'Адрес уточняется',
 			registrations: []
 		};
 		events.push(event);
@@ -130,6 +137,13 @@ class StateStore {
 		return event;
 	}
 
+	async isUserRegistered(eventId, telegramId) {
+		const events = await loadEvents();
+		const event = events.find(e => e.id === eventId);
+		if (!event) return false;
+		return (event.registrations || []).some(r => String(r.userId) === String(telegramId));
+	}
+
 	async cancelSignup(eventId, telegramId) {
 		const events = await loadEvents();
 		const event = events.find(e => e.id === eventId);
@@ -143,7 +157,16 @@ class StateStore {
 		const profiles = await loadProfiles();
 		let p = profiles.find(x => String(x.telegramId) === String(userId));
 		if (!p) {
-			p = { telegramId: String(userId), username: username || null, firstName: firstName || null, wins: 0, createdAt: Date.now() };
+			p = {
+				telegramId: String(userId),
+				username: username || null,
+				firstName: firstName || null,
+				nickname: null,
+				realName: null,
+				avatarFileId: null,
+				wins: 0,
+				createdAt: Date.now()
+			};
 			profiles.push(p);
 			await saveProfiles(profiles);
 		}
