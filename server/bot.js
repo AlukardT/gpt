@@ -75,7 +75,7 @@ export async function ensureBot(app) {
 	botInstance = bot;
 	bot.use(session());
 
-	bot.catch((err, ctx) => {
+	bot.catch((err) => {
 		console.error('[bot] error', err);
 	});
 
@@ -217,14 +217,41 @@ export async function ensureBot(app) {
 		await ctx.reply('Роли разосланы.');
 	});
 
-	try {
-		await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-	} catch (e) {
-		console.warn('[bot] deleteWebhook warning:', e.message);
+	// Start: webhook if WEB_APP_URL present, otherwise polling
+	const baseUrl = process.env.WEB_APP_URL && process.env.WEB_APP_URL.trim();
+	if (baseUrl && app) {
+		const path = '/tg';
+		app.use(path, bot.webhookCallback(path));
+		try {
+			await bot.telegram.setWebhook(baseUrl + path);
+			console.log('[bot] webhook set to', baseUrl + path);
+		} catch (e) {
+			console.error('[bot] setWebhook error', e);
+		}
+		app.get('/health/bot', async (req, res) => {
+			try {
+				const info = await bot.telegram.getWebhookInfo();
+				res.json({ mode: 'webhook', info });
+			} catch (e) {
+				res.status(500).json({ error: e.message });
+			}
+		});
+		return bot;
+	} else {
+		try {
+			await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+		} catch (e) {
+			console.warn('[bot] deleteWebhook warning:', e.message);
+		}
+		await bot.launch();
+		console.log('[bot] launched via long polling');
+		if (app) {
+			app.get('/health/bot', async (req, res) => {
+				res.json({ mode: 'polling', ok: true });
+			});
+		}
+		process.once('SIGINT', () => bot.stop('SIGINT'));
+		process.once('SIGTERM', () => bot.stop('SIGTERM'));
+		return bot;
 	}
-	await bot.launch();
-	console.log('[bot] launched via long polling');
-	process.once('SIGINT', () => bot.stop('SIGINT'));
-	process.once('SIGTERM', () => bot.stop('SIGTERM'));
-	return bot;
 }
