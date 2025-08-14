@@ -1,0 +1,9 @@
+import { h } from 'preact';
+import type { UppyContext } from './types.js';
+export type ProviderIconProps = {
+    provider: 'device' | 'camera' | 'screen-capture' | 'audio' | 'dropbox' | 'facebook' | 'instagram' | 'onedrive' | 'googlephotos' | 'googledrive';
+    fill?: string;
+    ctx?: UppyContext;
+};
+export default function ProviderIcon(props: ProviderIconProps): h.JSX.Element | null;
+//# sourceMappingURL=ProviderIcon.d.ts.map
