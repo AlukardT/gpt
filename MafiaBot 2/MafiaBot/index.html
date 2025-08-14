@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mafia BALAGAN - Помощник ведущего</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0f23, #1a1a3a, #2d1b4e);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            text-align: center;
+        }
+        
+        .main-title {
+            font-size: 48px;
+            margin-bottom: 20px;
+            background: linear-gradient(45deg, #ff6b6b, #feca57, #48dbfb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+        }
+        
+        .subtitle {
+            font-size: 20px;
+            margin-bottom: 40px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .redirect-card {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 20px;
+            padding: 40px;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            margin: 40px auto;
+            max-width: 500px;
+        }
+        
+        .redirect-text {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .redirect-btn {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #0088cc, #00aaff);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .redirect-btn:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(45deg, #00aaff, #0088cc);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .loading-text {
+            margin-top: 20px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        @media (max-width: 768px) {
+            .main-title {
+                font-size: 36px;
+            }
+            
+            .redirect-card {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+    <script>
+        // Автоматическое перенаправление через 3 секунды
+        setTimeout(function() {
+            window.location.href = '/balagan/';
+        }, 3000);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1 class="main-title">🎭 Mafia BALAGAN</h1>
+        <p class="subtitle">Профессиональный помощник ведущего игры в Мафию</p>
+        
+        <div class="redirect-card">
+            <p class="redirect-text">
+                Добро пожаловать в Mafia BALAGAN!<br>
+                Через несколько секунд вы будете автоматически перенаправлены в приложение.
+            </p>
+            <a href="/balagan/" class="redirect-btn">🎭 Открыть Mafia BALAGAN</a>
+            <p class="loading-text">Автоматическое перенаправление через 3 секунды...</p>
+        </div>
+    </div>
+</body>
+</html>

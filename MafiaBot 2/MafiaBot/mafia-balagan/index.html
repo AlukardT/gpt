@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Наша Мафия - Помощник ведущего</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="game-header">
+            <h1>🎭 Наша Мафия</h1>
+        </header>
+
+        <!-- Main Menu -->
+        <div class="main-menu" id="mainMenu">
+            <!-- Upcoming Event Card -->
+            <div class="upcoming-event-card" id="upcomingEventCard" style="display: none;">
+                <div class="event-header">
+                    <h3>🎯 Ближайшее событие</h3>
+                    <div class="event-status" id="eventStatus">Загрузка...</div>
+                </div>
+                <div class="event-details" id="eventDetails">
+                    <!-- Event details will be loaded here -->
+                </div>
+                <div class="event-registrations" id="eventRegistrations">
+                    <!-- Registrations will be loaded here -->
+                </div>
+                <div class="event-actions">
+                    <button class="event-btn play-btn" onclick="startGameFromEvent()" id="playEventBtn">🎮 Играть</button>
+                    <button class="event-btn load-btn" onclick="loadEventToGame()" id="loadEventBtn">📥 Загрузить игроков</button>
+                    <button class="event-btn refresh-btn" onclick="refreshUpcomingEvent()">🔄 Обновить</button>
+                </div>
+            </div>
+            
+            <div class="menu-buttons">
+                <button id="btn-continue" class="menu-btn primary" style="display: none; background: linear-gradient(45deg, #2ed573, #1e90ff); color: white; font-weight: bold;">▶ Продолжить игру</button>
+                <button class="menu-btn" onclick="showSection('players')">🔹 Игроки</button>
+                <button class="menu-btn" onclick="showSection('gameSetup')">🔹 Начать игру</button>
+            </div>
+        </div>
+
+        <!-- Game Table -->
+        <div class="game-table-container" id="gameTable" style="display: none;">
+            <div class="oval-table">
+                <!-- Central control panel -->
+                <div class="table-center" id="tableCenter">
+                    <div class="phase-display">
+                        <div class="current-phase" id="currentPhase">Подготовка</div>
+                        <div class="phase-instruction" id="phaseInstruction">Настройте роли и начните игру</div>
+                    </div>
+                    <div class="game-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Живых:</span>
+                            <span class="stat-value" id="aliveCount">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Мафии:</span>
+                            <span class="stat-value" id="mafiaAlive">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">День:</span>
+                            <span class="stat-value" id="dayDisplay">1</span>
+                        </div>
+                    </div>
+                    <div class="center-actions" id="centerActions">
+                        <!-- Dynamic action buttons will appear here -->
+                    </div>
+                </div>
+                
+                <!-- Player seats around the oval table -->
+                <div class="player-seats" id="playerSeats">
+                    <!-- Players will be dynamically placed here -->
+                </div>
+            </div>
+            
+            <!-- Game Log Panel -->
+            <div class="game-log-panel" id="gameLogPanel">
+                <div class="log-header">
+                    <h3>📜 История игры</h3>
+                    <button class="log-toggle" onclick="toggleLog()">_</button>
+                </div>
+                <div class="log-content" id="logContent">
+                    <!-- Game log entries will appear here -->
+                </div>
+            </div>
+            
+            <!-- Bottom controls -->
+            <div class="bottom-controls">
+                <button class="control-btn step-back" onclick="stepBack()" id="stepBackBtn" disabled>⬅️ Назад</button>
+                <button class="control-btn step-forward" onclick="stepForward()" id="stepForwardBtn">➡️ Дальше</button>
+                <button class="control-btn pause-btn" onclick="togglePause()" id="pauseBtn">⏸️ Пауза</button>
+                <button class="control-btn rules-btn" onclick="showRules()">📖 Правила</button>
+                <button class="control-btn save-btn" onclick="saveLog()">💾 Сохранить</button>
+                <button class="control-btn menu-btn" onclick="showMainMenu()">📋 Меню</button>
+            </div>
+        </div>
+
+        <!-- Players Management Section -->
+        <div class="section players-section" id="playersSection" style="display: none;">
+            <div class="section-header">
+                <h2>👥 Управление игроками</h2>
+                <button class="back-btn" onclick="showMainMenu()">🔙 Назад</button>
+            </div>
+            
+            <div class="add-player">
+                <input type="text" id="playerName" placeholder="Имя игрока" class="player-input">
+                <input type="text" id="playerUsername" placeholder="@username" class="player-input">
+                <input type="text" id="telegramId" placeholder="Telegram ID" class="player-input">
+                <input type="number" id="seatNumber" placeholder="Место за столом" class="player-input" min="1" max="20">
+                <button class="add-btn" onclick="addPlayer()">➕ Добавить</button>
+            </div>
+            
+            <div class="test-controls" style="margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                <button class="control-btn" onclick="addTestPlayers()" style="background: linear-gradient(45deg, #2ed573, #1e90ff);">🎮 Добавить 16 тестовых игроков</button>
+                <button class="control-btn" onclick="clearAllPlayers()" style="background: linear-gradient(45deg, #ff6b6b, #ee5a24);">🗑️ Очистить всех игроков</button>
+            </div>
+            
+            <div class="players-list" id="playersList">
+                <!-- Players list will be displayed here -->
+            </div>
+        </div>
+
+        <!-- Game Setup Section -->
+        <div class="section game-setup-section" id="gameSetupSection" style="display: none;">
+            <div class="section-header">
+                <h2>🎮 Настройка игры</h2>
+                <button class="back-btn" onclick="showMainMenu()">🔙 Назад</button>
+            </div>
+            
+            <div class="event-info" id="gameEventInfo" style="display: none;">
+                <div class="event-info-header">
+                    <h3>🎯 Игра для события</h3>
+                </div>
+                <div class="event-info-content" id="gameEventDetails">
+                    <!-- Event details will be shown here -->
+                </div>
+            </div>
+            
+            <div class="roles-config">
+                <h3>⚡ Настройка ролей</h3>
+                <div id="roles-settings" class="roles-grid"></div>
+                
+                <div class="game-mode">
+                    <h3>🎭 Режим игры</h3>
+                    <label><input type="radio" name="gameMode" value="hidden" checked> Скрытые роли</label>
+                    <label><input type="radio" name="gameMode" value="open"> Открытые роли</label>
+                </div>
+                
+                <button class="start-game-btn" onclick="assignRoles()">🚀 Раздать роли и начать</button>
+            </div>
+        </div>
+
+        <!-- Rules Section -->
+        <div class="section rules-section" id="rulesSection" style="display: none;">
+            <div class="section-header">
+                <h2>📖 Правила игры</h2>
+                <button class="back-btn" onclick="showMainMenu()">🔙 Назад</button>
+            </div>
+            
+            <div class="rules-content">
+                <div class="rules-block">
+                    <h3>🟥 Роли мафии</h3>
+                    <p><strong>Дон:</strong> Принимает финальное решение об убийстве</p>
+                    <p><strong>Мафия:</strong> Участвует в выборе жертвы</p>
+                    <p><strong>Консильери:</strong> Вербует мирных при нехватке мафии</p>
+                    <p><strong>Капо:</strong> Может заблокировать ролевого игрока до 3-й ночи</p>
+                </div>
+                
+                <div class="rules-block">
+                    <h3>🟦 Мирные роли</h3>
+                    <p><strong>Комиссар:</strong> Проверяет роль игрока</p>
+                    <p><strong>Доктор:</strong> Лечит одного игрока за ночь</p>
+                    <p><strong>Любовница:</strong> Блокирует ход игрока на ночь</p>
+                    <p><strong>Подрывник:</strong> Минирует игроков, взрывается при смерти</p>
+                </div>
+                
+                <div class="rules-block">
+                    <h3>⚪ Нейтральные роли</h3>
+                    <p><strong>Маньяк:</strong> Убивает любого игрока каждую ночь</p>
+                    <p><strong>Камикадзе:</strong> Может пожертвовать собой для убийства мафии</p>
+                    <p><strong>Оборотень:</strong> Активируется после смерти всей мафии</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Section -->
+        <div class="section history-section" id="historySection" style="display: none;">
+            <div class="section-header">
+                <h2>📜 История игры</h2>
+                <button class="back-btn" onclick="showMainMenu()">🔙 Назад</button>
+            </div>
+            
+            <div class="history-content" id="historyContent">
+                <p class="no-history">История пуста. Начните игру чтобы увидеть действия.</p>
+            </div>
+        </div>
+
+        <!-- Night Phase Panel -->
+        <div class="night-panel" id="nightPanel" style="display: none;">
+            <div class="night-header">
+                <h3>🌙 Ночная фаза</h3>
+                <div class="night-step">День <span id="nightDayNumber"></span></div>
+            </div>
+            
+            <div class="night-action" id="nightAction">
+                <!-- Night role selector and actions will be displayed here -->
+            </div>
+            
+            <div class="night-controls">
+                <button class="night-btn" onclick="finishNight()" style="background: #e74c3c;">🌅 Завершить ночь</button>
+                <button class="night-btn" onclick="toggleNightHistory()" style="background: #3498db;">📜 История ходов</button>
+            </div>
+        </div>
+
+        <!-- Night History Panel -->
+        <div class="night-history-panel" id="nightHistoryPanel" style="display: none;">
+            <div class="night-history-header">
+                <h3>📜 История ходов</h3>
+                <button class="close-history-btn" onclick="closeNightHistory()">✕</button>
+            </div>
+            
+            <div class="night-history-content" id="nightHistoryContent">
+                <!-- History entries will be displayed here -->
+            </div>
+        </div>
+
+        <!-- Unified Voting Interface -->
+
+
+        <div id="votingInterface" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; background: rgba(0,0,0,0.95);">
+            
+            <!-- Header with current voter and timer -->
+            <div style="background: rgba(47, 53, 66, 0.95); padding: 20px; border-bottom: 2px solid #444;">
+                <div style="text-align: center;">
+                    <h3 style="color: white; margin: 0;">🗳️ Голосование День <span id="votingDayNumber"></span></h3>
+                    <div id="currentVoterInfo" style="margin-top: 10px; color: #feca57;"></div>
+                </div>
+            </div>
+            
+            <!-- Players list for voting -->
+            <div style="flex: 1; padding: 20px; overflow-y: auto; height: calc(100vh - 200px);">
+                <div id="playersVoteList" style="max-width: 600px; margin: 0 auto;"></div>
+            </div>
+            
+            <!-- Bottom controls -->
+            <div style="background: rgba(47, 53, 66, 0.95); padding: 20px; border-top: 2px solid #444; position: absolute; bottom: 0; left: 0; right: 0;">
+                <div id="votingControls" style="text-align: center; max-width: 600px; margin: 0 auto;"></div>
+            </div>
+            
+        </div>
+        
+        <!-- Player Control Popup -->
+        <div class="player-control-popup" id="playerControlPopup" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 350px; background: #2f3542; border-radius: 15px; padding: 25px; z-index: 1002; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h4 style="color: white; margin: 0; text-align: center; flex-grow: 1;">💀 Управление игроком</h4>
+                <button onclick="closePlayerControl()" style="background: transparent; color: #95a5a6; border: none; font-size: 18px; cursor: pointer; padding: 5px;">✕</button>
+            </div>
+            
+            <div id="selectedPlayerInfo" style="color: #feca57; font-size: 16px; text-align: center; margin-bottom: 20px; min-height: 25px; font-weight: bold;"></div>
+            
+            <div style="text-align: center;">
+                <button onclick="killSelectedPlayer()" id="killBtn" style="background: #ff4757; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 15px; font-size: 14px;" disabled>
+                    💀 Убить игрока
+                </button>
+                <button onclick="reviveSelectedPlayer()" id="reviveBtn" style="background: #2ed573; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; font-size: 14px;" disabled>
+                    💚 Вернуть к жизни
+                </button>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <button onclick="closePlayerControl()" style="background: #57606f; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                    Закрыть
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
