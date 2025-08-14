@@ -9,8 +9,6 @@ import eventsRouter from './api/events.js';
 import sessionRouter from './api/session.js';
 import profilesRouter from './api/profiles.js';
 
-import { ensureBot } from './bot.js';
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -43,10 +41,4 @@ const port = process.env.PORT || 3000;
 
 app.listen(port, async () => {
 	console.log(`[server] Listening on port ${port}`);
-	try {
-		await ensureBot(app);
-		console.log('[bot] started');
-	} catch (err) {
-		console.error('[bot] failed to start', err.message);
-	}
 });

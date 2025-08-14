@@ -64,7 +64,7 @@ async function renderEventMessage(ctx, idx = 0) {
 	]));
 }
 
-export async function ensureBot(app) {
+export async function ensureBot() {
 	if (botInstance) return botInstance;
 	const token = process.env.BOT_TOKEN;
 	if (!token) {
@@ -80,7 +80,6 @@ export async function ensureBot(app) {
 	});
 
 	bot.start(async (ctx) => {
-		// Force remove any persistent reply keyboard
 		await ctx.reply(' ', Markup.removeKeyboard());
 		await ctx.reply(
 			'🍷 Добро пожаловать в клуб "Наша мафия" 🎭\n\n' +
@@ -100,7 +99,6 @@ export async function ensureBot(app) {
 		);
 	});
 
-	// Menu entries via inline buttons
 	bot.action('menu:afisha', async (ctx) => { await ctx.answerCbQuery(); return renderEventMessage(ctx, 0); });
 	bot.action('menu:profile', async (ctx) => {
 		await ctx.answerCbQuery();
@@ -109,7 +107,6 @@ export async function ensureBot(app) {
 		await ctx.reply(`Профиль:\nПсевдоним: ${name}\nИмя: ${profile.realName || profile.firstName || '-'}\nПобед: ${profile.wins || 0}`);
 	});
 
-	// Pagination and actions
 	bot.action(/nav:(\d+)/, async (ctx) => {
 		await ctx.answerCbQuery();
 		const idx = Number(ctx.match[1]);
@@ -149,7 +146,6 @@ export async function ensureBot(app) {
 		await renderEventMessage(ctx, idx);
 	});
 
-	// Hidden registration flow: command /register
 	bot.command('register', async (ctx) => {
 		ctx.session = { step: 'ask_nickname' };
 		await ctx.reply('Введите ваш псевдоним:');
@@ -187,7 +183,6 @@ export async function ensureBot(app) {
 		return next();
 	});
 
-	// Admin commands remain
 	bot.command('create_event', async (ctx) => {
 		if (!isAdmin(ctx.from.id)) return ctx.reply('Недостаточно прав');
 		const text = ctx.message.text.split(' ').slice(1).join(' ');
@@ -217,41 +212,14 @@ export async function ensureBot(app) {
 		await ctx.reply('Роли разосланы.');
 	});
 
-	// Start: webhook if WEB_APP_URL present, otherwise polling
-	const baseUrl = process.env.WEB_APP_URL && process.env.WEB_APP_URL.trim();
-	if (baseUrl && app) {
-		const path = '/tg';
-		app.use(path, bot.webhookCallback(path));
-		try {
-			await bot.telegram.setWebhook(baseUrl + path);
-			console.log('[bot] webhook set to', baseUrl + path);
-		} catch (e) {
-			console.error('[bot] setWebhook error', e);
-		}
-		app.get('/health/bot', async (req, res) => {
-			try {
-				const info = await bot.telegram.getWebhookInfo();
-				res.json({ mode: 'webhook', info });
-			} catch (e) {
-				res.status(500).json({ error: e.message });
-			}
-		});
-		return bot;
-	} else {
-		try {
-			await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-		} catch (e) {
-			console.warn('[bot] deleteWebhook warning:', e.message);
-		}
-		await bot.launch();
-		console.log('[bot] launched via long polling');
-		if (app) {
-			app.get('/health/bot', async (req, res) => {
-				res.json({ mode: 'polling', ok: true });
-			});
-		}
-		process.once('SIGINT', () => bot.stop('SIGINT'));
-		process.once('SIGTERM', () => bot.stop('SIGTERM'));
-		return bot;
+	try {
+		await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+	} catch (e) {
+		console.warn('[bot] deleteWebhook warning:', e.message);
 	}
+	await bot.launch();
+	console.log('[bot] launched via long polling');
+	process.once('SIGINT', () => bot.stop('SIGINT'));
+	process.once('SIGTERM', () => bot.stop('SIGTERM'));
+	return bot;
 }
