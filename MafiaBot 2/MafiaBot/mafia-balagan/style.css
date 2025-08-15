@@ -2084,3 +2084,18 @@ body {
 	filter: brightness(0.5) grayscale(50%);
 	opacity: 0.6;
 }
+
+/* Enlarge pseudo-role badges in night phase */
+.game-table-container.night-phase .player-seat:not(.dead):not(.eliminated)::before {
+	width: 26px;
+	height: 26px;
+	font-size: 16px;
+	border-width: 3px;
+}
+
+/* Effect icons (ensure larger size if styled by inline, keep fallback) */
+.effect-icon {
+	font-size: 20px !important;
+	width: 28px !important;
+	height: 28px !important;
+}

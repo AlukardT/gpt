@@ -3535,7 +3535,7 @@ function updatePlayerVisualEffects(playerId, effect, roleType = null) {
             
         case 'loved':
             seat.classList.add('loved');
-            addEffectIcon(seat, '💋', '#e91e63');
+            addEffectIcon(seat, '💋', '#e91e63', false, 'br');
             console.log(`💋 Поцелуй добавлен к игроку ${player.name}`);
             break;
             
@@ -3578,28 +3578,29 @@ function updatePlayerVisualEffects(playerId, effect, roleType = null) {
 }
 
 // Вспомогательная функция для добавления иконок эффектов
-function addEffectIcon(seat, iconText, color, isTemporary = false) {
+function addEffectIcon(seat, iconText, color, isTemporary = false, position = 'tr') {
     const effectIcon = document.createElement('div');
     effectIcon.className = isTemporary ? 'effect-icon targeted' : 'effect-icon';
     effectIcon.style.cssText = `
         position: absolute;
-        top: 5px;
+        ${position === 'br' ? 'bottom: 5px;' : 'top: 5px;'}
         right: 5px;
-        font-size: 18px;
+        font-size: 20px;
         z-index: 100;
         color: ${color};
         text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
         pointer-events: none;
-        background: rgba(255,255,255,0.9);
+        background: rgba(255,255,255,0.95);
         border-radius: 50%;
-        width: 24px;
-        height: 24px;
+        width: 28px;
+        height: 28px;
         display: flex;
         align-items: center;
         justify-content: center;
     `;
     effectIcon.textContent = iconText;
     seat.appendChild(effectIcon);
+    return effectIcon;
 }
 
 // НОВАЯ ФУНКЦИЯ РАЗРЕШЕНИЯ НОЧИ ПО ТЗ - СТРОГИЙ ПОРЯДОК ПРИОРИТЕТОВ
