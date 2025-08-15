@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { db } = require('./db.js');
-const { eq } = require('drizzle-orm');
+const { eq, desc, asc } = require('drizzle-orm');
 // Import all needed tables from the schema.  Note: eventRegistrations was missing previously
 // which caused a ReferenceError when fetching registrations.
 const { userProfiles, events, eventRegistrations, activeGames } = require('../shared/schema.js');
@@ -149,9 +149,9 @@ app.get('/api/players/:id', publicAuth, async (req, res) => {
   }
 });
 
-app.get('/api/players', async (req, res) => {
+app.get('/api/players', publicAuth, async (req, res) => {
   try {
-    const allPlayers = await db.select().from(userProfiles).orderBy(userProfiles.lastActive);
+    const allPlayers = await db.select().from(userProfiles).orderBy(desc(userProfiles.lastActive));
     return ok(res, { players: allPlayers });
   } catch (error) {
     console.error('Error fetching players:', error);
@@ -204,8 +204,7 @@ app.get('/api/events', publicAuth, async (req, res) => {
     const allEvents = await db
       .select()
       .from(events)
-      .orderBy(events.date)
-      .orderBy(events.time);
+      .orderBy(asc(events.date), asc(events.time));
     return ok(res, { events: allEvents });
   } catch (error) {
     console.error('Error fetching events:', error);
@@ -224,8 +223,7 @@ app.get('/api/events/next', publicAuth, async (req, res) => {
       .select()
       .from(events)
       .where(`(date > '${todayStr}') OR (date = '${todayStr}' AND time >= '${timeStr}')`)
-      .orderBy(events.date)
-      .orderBy(events.time)
+      .orderBy(asc(events.date), asc(events.time))
       .limit(1);
     res.json(nextEvent || null);
   } catch (error) {
@@ -313,12 +311,13 @@ app.post('/api/games', adminAuth, async (req, res) => {
   }
 });
 
-app.get('/api/games/:id', async (req, res) => {
+app.get('/api/games/:id', publicAuth, async (req, res) => {
   try {
     const [game] = await db.select().from(activeGames).where(eq(activeGames.id, req.params.id));
     if (!game) return bad(res, 404, 'game not found');
     
-    res.json(JSON.parse(game.gameData));
+    // gameData is JSONB; return as-is
+    return ok(res, { state: game.gameData });
   } catch (error) {
     console.error('Error fetching game:', error);
     return bad(res, 500, 'Database error');
@@ -329,7 +328,7 @@ async function saveGameState(gameId, state) {
   try {
     await db.update(activeGames)
       .set({
-        gameData: JSON.stringify(state),
+        gameData: state,
         lastUpdated: new Date()
       })
       .where(eq(activeGames.id, gameId));
@@ -345,7 +344,7 @@ app.post('/api/games/:id/assignRoles', adminAuth, async (req, res) => {
     const [game] = await db.select().from(activeGames).where(eq(activeGames.id, req.params.id));
     if (!game) return bad(res, 404, 'game not found');
     
-    const state = JSON.parse(game.gameData);
+    const state = game.gameData || {};
     const { seats } = req.body;
     
     const allPlayers = await db.select().from(userProfiles);
@@ -368,6 +367,7 @@ app.post('/api/games/:id/assignRoles', adminAuth, async (req, res) => {
 
     state.phase = 'firstNight';
     state.nightNumber = 1;
+    state.log = state.log || [];
     state.log.push({ t: Date.now(), m: 'Роли розданы. Первая ночь.' });
     
     await saveGameState(req.params.id, state);
@@ -383,7 +383,7 @@ app.post('/api/games/:id/nightAction', adminAuth, async (req, res) => {
     const [game] = await db.select().from(activeGames).where(eq(activeGames.id, req.params.id));
     if (!game) return bad(res, 404, 'game not found');
     
-    const state = JSON.parse(game.gameData);
+    const state = game.gameData || {};
     const { kind, actorId, targetId, meta } = req.body;
     
     state.pending = state.pending || [];
@@ -402,12 +402,13 @@ app.post('/api/games/:id/resolveNight', adminAuth, async (req, res) => {
     const [game] = await db.select().from(activeGames).where(eq(activeGames.id, req.params.id));
     if (!game) return bad(res, 404, 'game not found');
     
-    const state = JSON.parse(game.gameData);
+    const state = game.gameData || {};
 
     // Здесь можно вызвать resolveNight(state) из игрового движка
     // const summary = resolveNight(state);
 
     state.phase = 'day';
+    state.log = state.log || [];
     state.log.push({ t: Date.now(), m: 'Ночь завершена.' });
     
     await saveGameState(req.params.id, state);
@@ -423,7 +424,7 @@ app.post('/api/games/:id/vote', adminAuth, async (req, res) => {
     const [game] = await db.select().from(activeGames).where(eq(activeGames.id, req.params.id));
     if (!game) return bad(res, 404, 'game not found');
     
-    const state = JSON.parse(game.gameData);
+    const state = game.gameData || {};
     const { voterId, targetId } = req.body;
     
     state.votes = state.votes || {};
@@ -437,11 +438,11 @@ app.post('/api/games/:id/vote', adminAuth, async (req, res) => {
   }
 });
 
-// Save game state endpoint
+// Save game state endpoint (single admin-protected version)
 app.post('/api/games/:id/save', adminAuth, async (req, res) => {
   try {
     const state = req.body;
-    if (!state || state.id !== req.params.id) {
+    if (!state || String(state.id) !== String(req.params.id)) {
       return bad(res, 400, 'Invalid state data');
     }
     
@@ -464,15 +465,15 @@ app.post('/api/games/:id/save', adminAuth, async (req, res) => {
   }
 });
 
-// Get active (not finished) game
+// Get active (not finished) game — single admin-protected version
 app.get('/api/games/active', adminAuth, async (req, res) => {
   try {
-    const games = await db.select().from(activeGames).orderBy(activeGames.lastUpdated);
+    const games = await db.select().from(activeGames).orderBy(desc(activeGames.lastUpdated));
     
-    for (const game of games.reverse()) { // Get latest first
+    for (const game of games) { // latest first
       try {
-        const state = JSON.parse(game.gameData);
-        if (state.phase !== 'finished' && state.isActive) {
+        const state = game.gameData;
+        if (state && state.phase !== 'finished' && state.isActive) {
           state.id = game.id; // Добавляем ID для фронтенда
           return ok(res, state);
         }

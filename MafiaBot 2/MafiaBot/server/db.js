@@ -14,25 +14,18 @@ if (!process.env.DATABASE_URL) {
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Create a drizzle ORM client
-const db = drizzle({ client: pool, schema });
+const db = drizzle(pool, { schema });
 
 /**
- * Ensures that all required tables exist in the database.  This function
- * creates the core tables for players, events, registrations and active games
- * if they do not already exist.  It runs automatically on module import.
+ * Ensures that all required tables exist in the database without destructive drops.
+ * Uses CREATE TABLE IF NOT EXISTS to avoid data loss on startup.
  */
 async function ensureTables() {
   const client = await pool.connect();
   try {
-    // Drop old tables if they exist to ensure schema consistency
-    await client.query(`DROP TABLE IF EXISTS active_games`);
-    await client.query(`DROP TABLE IF EXISTS event_registrations`);
-    await client.query(`DROP TABLE IF EXISTS events`);
-    await client.query(`DROP TABLE IF EXISTS user_profiles`);
-
-    // Recreate user_profiles table with the desired schema
+    // User profiles table
     await client.query(`
-      CREATE TABLE user_profiles (
+      CREATE TABLE IF NOT EXISTS user_profiles (
         id TEXT PRIMARY KEY,
         username TEXT,
         first_name TEXT,
@@ -47,9 +40,10 @@ async function ensureTables() {
         last_active TIMESTAMP DEFAULT NOW() NOT NULL
       )
     `);
-    // Recreate events table
+
+    // Events table
     await client.query(`
-      CREATE TABLE events (
+      CREATE TABLE IF NOT EXISTS events (
         id SERIAL PRIMARY KEY,
         title TEXT NOT NULL,
         location TEXT NOT NULL,
@@ -62,29 +56,31 @@ async function ensureTables() {
         is_active BOOLEAN DEFAULT TRUE NOT NULL
       )
     `);
-    // Recreate event_registrations table
+
+    // Event registrations table
     await client.query(`
-        CREATE TABLE event_registrations (
-          id SERIAL PRIMARY KEY,
-          event_id INTEGER REFERENCES events(id) NOT NULL,
-          user_id TEXT NOT NULL,
-          username TEXT,
-          player_count INTEGER DEFAULT 1 NOT NULL,
-          registered_at TIMESTAMP DEFAULT NOW() NOT NULL
-        )
+      CREATE TABLE IF NOT EXISTS event_registrations (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) NOT NULL,
+        user_id TEXT NOT NULL,
+        username TEXT,
+        player_count INTEGER DEFAULT 1 NOT NULL,
+        registered_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
     `);
-    // Recreate active_games table
+
+    // Active games table
     await client.query(`
-        CREATE TABLE active_games (
-          id SERIAL PRIMARY KEY,
-          event_id INTEGER REFERENCES events(id) NOT NULL,
-          phase TEXT DEFAULT 'setup' NOT NULL,
-          day_number INTEGER DEFAULT 1 NOT NULL,
-          is_active BOOLEAN DEFAULT TRUE NOT NULL,
-          game_data JSONB,
-          created_at TIMESTAMP DEFAULT NOW() NOT NULL,
-          last_updated TIMESTAMP DEFAULT NOW() NOT NULL
-        )
+      CREATE TABLE IF NOT EXISTS active_games (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER REFERENCES events(id) NOT NULL,
+        phase TEXT DEFAULT 'setup' NOT NULL,
+        day_number INTEGER DEFAULT 1 NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE NOT NULL,
+        game_data JSONB,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        last_updated TIMESTAMP DEFAULT NOW() NOT NULL
+      )
     `);
   } finally {
     client.release();
