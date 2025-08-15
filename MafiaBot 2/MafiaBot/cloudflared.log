@@ -57,3 +57,5 @@
 {"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T22:46:54Z","message":"Retrying connection in up to 1m4s"}
 {"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T22:47:01Z","message":"Connection terminated"}
 {"level":"info","time":"2025-08-15T22:47:49Z","message":"Initiating graceful shutdown due to signal terminated ..."}
+{"level":"info","time":"2025-08-15T22:48:19Z","message":"Tunnel server stopped"}
+{"level":"info","time":"2025-08-15T22:48:19Z","message":"Metrics server stopped"}
