@@ -2130,3 +2130,44 @@ body {
 	z-index: 15;
 	pointer-events: none;
 }
+
+/* Role circle (top-left) make semi-transparent gray */
+.game-table-container.night-phase .player-seat.alive::before {
+	background: rgba(0,0,0,0.65) !important;
+	border-color: rgba(255,255,255,0.4) !important;
+}
+
+/* First Night: mafia bigger and others dimmer by 40% */
+.game-table-container.mafia-intro .player-seat.alive.mafia .player-avatar,
+.game-table-container.mafia-intro .player-seat.alive.don .player-avatar,
+.game-table-container.mafia-intro .player-seat.alive.consigliere .player-avatar {
+	transform: scale(1.12);
+	box-shadow: 0 0 25px rgba(231, 76, 60, 0.8);
+}
+.game-table-container.mafia-intro .player-seat.alive:not(.mafia):not(.don):not(.consigliere) {
+	filter: brightness(0.6) grayscale(20%);
+	opacity: 0.6;
+}
+
+/* Vote summary panel on the left */
+.vote-summary-panel {
+	position: fixed;
+	top: 60px;
+	left: 10px;
+	width: 220px;
+	max-height: 60vh;
+	overflow-y: auto;
+	background: rgba(0,0,0,0.75);
+	border: 1px solid rgba(255,255,255,0.2);
+	border-radius: 10px;
+	padding: 10px;
+	z-index: 1200;
+	backdrop-filter: blur(6px);
+	color: #fff;
+	display: none;
+}
+.vote-summary-title { font-weight: bold; color: #feca57; margin-bottom: 8px; }
+.vote-summary-row { display: flex; justify-content: space-between; padding: 4px 0; }
+.vote-summary-row .name { font-size: 12px; }
+.vote-summary-row .count { font-weight: 700; color: #2ed573; }
+.vote-summary-empty { font-size: 12px; opacity: 0.8; }

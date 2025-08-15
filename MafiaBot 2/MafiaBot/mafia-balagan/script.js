@@ -204,7 +204,7 @@ const nightRoles = {
     },
     maniac: { 
         name: 'Маньяк', 
-        action: 'убивает игрока', 
+        action: 'выбирает жертву', 
         emoji: '🔪',
         color: '#8e44ad',
         hint: 'Маньяк выбрал жертву',
@@ -216,18 +216,27 @@ const nightRoles = {
         action: 'проводит ночь с игроком', 
         emoji: '💋',
         color: '#e91e63',
-        hint: 'Любовница выбрала партнера',
+        hint: 'Любовница выбрала партнёра',
         targetIcon: '💋',
-        description: 'Блокирует действие игрока и защищает от смерти'
+        description: 'Блокирует и защищает игрока на ночь'
     },
     kamikaze: { 
         name: 'Камикадзе', 
-        action: 'атакует игрока', 
+        action: 'атакует мафию ценой своей жизни', 
         emoji: '💥',
         color: '#ff4500',
-        hint: 'Камикадзе выбрал цель для атаки',
+        hint: 'Камикадзе выбрал цель',
         targetIcon: '💥',
-        description: 'Одноразовая атака: убивает мафию ценой своей жизни'
+        description: 'Одноразовая атака: убивает мафию, возможно ценой своей жизни'
+    },
+    bomber: {
+        name: 'Подрывник',
+        action: 'минирует игрока',
+        emoji: '💣',
+        color: '#FA8C16',
+        hint: 'Подрывник заминировал цель',
+        targetIcon: '💣',
+        description: 'Помечает игрока для возможного взрыва при смерти Подрывника'
     }
 };
 
@@ -2664,6 +2673,13 @@ function updatePlayerNightStates(seatElement, player) {
     // Clear previous state classes
     seatElement.classList.remove('active-role', 'target-selectable', 'protected', 'mined', 'checked');
     
+    // Jail persistent overlay
+    if (player.jailed) {
+        seatElement.classList.add('jailed');
+    } else {
+        seatElement.classList.remove('jailed');
+    }
+    
     // Add active role highlighting if this player's role is currently acting
     if (gameState.phase === 'night' && gameState.currentNightRole === player.role) {
         seatElement.classList.add('active-role');
@@ -3011,11 +3027,13 @@ function buildNightSteps(state) {
     if (hasAlive('kamikaze') && !state.kamikazeUsed) {
         steps.push({ kind: 'kamikaze' });
     }
+
+    // 9) Подрывник — теперь есть шаг минирования
+    if (hasAlive('bomber')) {
+        steps.push({ kind: 'bomber' });
+    }
     
-    // 9) Подрывник — шага ночью нет (минирование заранее)
-    // 10) Оборотень — шага ночью нет (превращение на рассвете)
-    
-    // 11) Итоги
+    // 10) Итоги
     steps.push({ kind: 'summary' });
     
     return steps;
@@ -3355,77 +3373,63 @@ function applyNightAction(roleType, targetId) {
     
     console.log(`🌙 Применяем действие ${roleType} к игроку ${targetPlayer.name}`);
     
-    // НОВАЯ ЛОГИКА ПРИМЕНЕНИЯ НОЧНЫХ ДЕЙСТВИЙ ПО ТЗ
-    console.log(`🌙 Применяем действие ${roleType} к игроку ${targetPlayer.name}`);
-    
     switch (roleType) {
         case 'mafia':
-            // Мафия и Дон действуют вместе - помечаем цель для убийства
             nightPlan.mafiaTarget = targetId;
             updatePlayerVisualEffects(targetId, 'targeted', roleType);
             addLogEntry(`🔫 Мафия выбрала цель: ${targetPlayer.name}`);
             break;
-            
         case 'consigliere':
-            // Консильери пытается завербовать (одноразово)
             nightPlan.consigliereTarget = targetId;
             updatePlayerVisualEffects(targetId, 'targeted', roleType);
             addLogEntry(`🤝 Консильери выбрал цель для вербовки: ${targetPlayer.name}`);
             break;
-            
         case 'jailer':
-            // Тюремщик арестовывает
             nightPlan.jailerTarget = targetId;
             updatePlayerVisualEffects(targetId, 'targeted', roleType);
             addLogEntry(`🔒 Тюремщик выбрал цель для ареста: ${targetPlayer.name}`);
             break;
-            
         case 'sheriff':
-            // Комиссар проверяет игрока
             nightPlan.sheriffTarget = targetId;
             updatePlayerVisualEffects(targetId, 'checked', roleType);
             addLogEntry(`🔎 Комиссар проверяет: ${targetPlayer.name}`);
-            
-            // Результат проверки отложенный - показываем в итоговой сводке ночи
             if (!targetPlayer.flags) targetPlayer.flags = {};
             targetPlayer.flags.checkedBySheriff = true;
             break;
-            
         case 'doctor':
-            // Доктор лечит игрока
             nightPlan.doctorTarget = targetId;
             updatePlayerVisualEffects(targetId, 'healed', roleType);
             addLogEntry(`💉 Доктор выбрал для лечения: ${targetPlayer.name}`);
             break;
-            
         case 'maniac':
-            // Маньяк убивает игрока
             nightPlan.maniacTarget = targetId;
             updatePlayerVisualEffects(targetId, 'targeted', roleType);
             addLogEntry(`🔪 Маньяк выбрал жертву: ${targetPlayer.name}`);
             break;
-            
         case 'lover':
-            // Любовница блокирует и защищает
             nightPlan.loverTarget = targetId;
             updatePlayerVisualEffects(targetId, 'loved', roleType);
             addLogEntry(`💋 Любовница выбрала партнера: ${targetPlayer.name}`);
             break;
-            
         case 'kamikaze':
-            // Камикадзе атакует (одноразово)
             nightPlan.kamikazeTarget = targetId;
             gameState.kamikazeUsed = true;
             updatePlayerVisualEffects(targetId, 'targeted', roleType);
             addLogEntry(`💥 Камикадзе выбрал цель для атаки: ${targetPlayer.name}`);
             break;
-            
+        case 'bomber':
+            // Пометить цель как заминированную
+            bomberMinedIds.add(targetId);
+            if (!targetPlayer.effects) targetPlayer.effects = {};
+            targetPlayer.effects.mined = true;
+            updatePlayerVisualEffects(targetId, 'mined', roleType);
+            addLogEntry(`💣 Подрывник заминировал: ${targetPlayer.name}`);
+            break;
         default:
             console.log(`⚠️ Неизвестная роль: ${roleType}`);
             addLogEntry(`⚠️ Неизвестная роль: ${roleType}`);
     }
     
-    // Обновляем отображение игроков
     updatePlayerTable();
 }
 
@@ -4502,6 +4506,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Контейнер всплывающих подсказок справа
     ensureToastContainer();
     
+    // Панель сводки голосов слева
+    ensureVoteSummaryPanel();
+    
     // Проверяем активные игры
     checkActiveGame();
     
@@ -4514,4 +4521,44 @@ document.addEventListener('DOMContentLoaded', function() {
 // Функция для Telegram main button
 function onMainButtonClick() {
     refreshUpcomingEvent();
+}
+
+// Left-side vote summary panel
+function ensureVoteSummaryPanel() {
+    let panel = document.getElementById('voteSummaryPanel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'voteSummaryPanel';
+        panel.className = 'vote-summary-panel';
+        document.body.appendChild(panel);
+    }
+    return panel;
+}
+
+function updateVoteSummary() {
+    const panel = ensureVoteSummaryPanel();
+    if (!gameState.voting || !gameState.voting.isActive) {
+        panel.style.display = 'none';
+        panel.innerHTML = '';
+        return;
+    }
+    const counts = new Map();
+    Object.values(gameState.voting.votes).forEach(targetId => {
+        if (targetId && targetId !== 'abstain') {
+            counts.set(targetId, (counts.get(targetId) || 0) + 1);
+        }
+    });
+    const entries = [...counts.entries()].sort((a,b) => b[1]-a[1]);
+    if (entries.length === 0) {
+        panel.style.display = 'block';
+        panel.innerHTML = '<div class="vote-summary-title">Голоса</div><div class="vote-summary-empty">Пока нет голосов</div>';
+        return;
+    }
+    const lines = entries.map(([id, cnt]) => {
+        const p = gameState.players.find(pp => pp.id === id);
+        const name = p?.name || p?.nickname || p?.username || `Игрок ${id}`;
+        return `<div class="vote-summary-row"><span class="name">${name}</span><span class="count">${cnt}</span></div>`;
+    }).join('');
+    panel.style.display = 'block';
+    panel.innerHTML = `<div class="vote-summary-title">Голоса</div>${lines}`;
 }
