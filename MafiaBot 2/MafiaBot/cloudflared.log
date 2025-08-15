@@ -21,3 +21,39 @@
 {"level":"info","time":"2025-08-15T16:01:11Z","message":"Starting metrics server on 127.0.0.1:20241/metrics"}
 {"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:01:11Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveP256]"}
 {"level":"info","event":0,"connection":"23041497-a0b3-4064-9aeb-028610f5e19a","connIndex":0,"location":"pdx03","ip":"198.41.200.53","protocol":"quic","time":"2025-08-15T16:01:11Z","message":"Registered tunnel connection"}
+{"level":"error","event":0,"ip":"198.41.200.53","connIndex":0,"error":"context canceled","time":"2025-08-15T16:51:13Z","message":"Failed to serve tunnel connection"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:51:13Z","message":"Retrying connection in up to 1s"}
+{"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T16:51:14Z","message":"Connection terminated"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:51:15Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.200.53","connIndex":0,"error":"context canceled","time":"2025-08-15T16:51:15Z","message":"Failed to serve tunnel connection"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:51:15Z","message":"Retrying connection in up to 4s"}
+{"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T16:51:16Z","message":"Connection terminated"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:51:26Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.200.53","connIndex":0,"error":"context canceled","time":"2025-08-15T16:51:26Z","message":"Failed to serve tunnel connection"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:51:26Z","message":"Retrying connection in up to 8s"}
+{"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T16:51:33Z","message":"Connection terminated"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:52:20Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.200.53","connIndex":0,"error":"context canceled","time":"2025-08-15T16:52:20Z","message":"Failed to serve tunnel connection"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:52:20Z","message":"Retrying connection in up to 16s"}
+{"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T16:52:23Z","message":"Connection terminated"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:53:58Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.200.53","connIndex":0,"error":"context canceled","time":"2025-08-15T16:53:58Z","message":"Failed to serve tunnel connection"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:53:58Z","message":"Retrying connection in up to 32s"}
+{"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T16:54:09Z","message":"Connection terminated"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:56:22Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.200.53","connIndex":0,"error":"context canceled","time":"2025-08-15T16:56:22Z","message":"Failed to serve tunnel connection"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:56:22Z","message":"Retrying connection in up to 1m4s"}
+{"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T16:56:32Z","message":"Connection terminated"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:58:34Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.200.53","connIndex":0,"error":"context canceled","time":"2025-08-15T16:58:34Z","message":"Failed to serve tunnel connection"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T16:58:34Z","message":"Retrying connection in up to 1m4s"}
+{"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T16:58:38Z","message":"Connection terminated"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T17:03:09Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.200.53","connIndex":0,"error":"context canceled","time":"2025-08-15T17:03:09Z","message":"Failed to serve tunnel connection"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T17:03:09Z","message":"Retrying connection in up to 1m4s"}
+{"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T17:03:32Z","message":"Connection terminated"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T22:46:54Z","message":"Tunnel connection curve preferences: [X25519MLKEM768 CurveP256]"}
+{"level":"error","event":0,"ip":"198.41.200.53","connIndex":0,"error":"context canceled","time":"2025-08-15T22:46:54Z","message":"Failed to serve tunnel connection"}
+{"level":"info","event":0,"ip":"198.41.200.53","connIndex":0,"time":"2025-08-15T22:46:54Z","message":"Retrying connection in up to 1m4s"}
+{"level":"error","error":"context canceled","connIndex":0,"time":"2025-08-15T22:47:01Z","message":"Connection terminated"}
+{"level":"info","time":"2025-08-15T22:47:49Z","message":"Initiating graceful shutdown due to signal terminated ..."}
