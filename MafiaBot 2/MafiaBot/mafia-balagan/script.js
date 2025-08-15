@@ -928,7 +928,6 @@ function confirmNightAction() {
         return;
     }
     
-    // Записываем действие - исправляем ошибку с undefined
     const actionResult = `${role ? role.name : gameState.currentNightRole} ${role ? role.action : 'действует на'}: ${targetPlayer.name}`;
     
     gameState.nightActions.push({
@@ -942,20 +941,17 @@ function confirmNightAction() {
     
     addLogEntry(`${role ? role.emoji : '🌙'} ${actionResult}`);
     
-    // ПРИМЕНЯЕМ ЭФФЕКТЫ К ИГРОКАМ
     applyNightAction(gameState.currentNightRole, selectedTargetId);
     
-    // Комиссар: показать всплывающую подсказку (палец вверх/вниз)
     if (gameState.currentNightRole === 'sheriff') {
         const isMafia = ['mafia','don','consigliere'].includes(targetPlayer.role);
+        // make message larger, will be left because of CSS container move
         showToast(isMafia ? 'success' : 'info', isMafia ? '👍' : '👎', isMafia ? 'Этот игрок — мафия' : 'Этот игрок — не мафия');
     }
     
-    // Обновляем историю ходов в реальном времени
     updateNightHistoryContent();
-    scheduleSave(); // Автосохранение при подтверждении ночного действия
+    scheduleSave();
     
-    // ОБНОВЛЯЕМ центральный интерфейс с результатом действия
     const centerActions = document.getElementById('centerActions');
     if (centerActions && role) {
         centerActions.innerHTML = `
@@ -970,10 +966,8 @@ function confirmNightAction() {
         `;
     }
     
-    // НЕ сбрасываем currentNightRole здесь, это делается в nextNightRole()
     console.log('✅ Night action confirmed:', actionResult);
     
-    // Автоматически переходим к следующей роли через 2 секунды
     setTimeout(() => {
         nextNightRole();
     }, 2000);
@@ -4004,7 +3998,7 @@ function showToast(kind, emoji, text) {
         setTimeout(() => {
             if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
         }, 250);
-    }, 3000);
+    }, 5000); // longer visibility
 }
 
 // Night History Management
