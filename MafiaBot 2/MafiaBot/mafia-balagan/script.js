@@ -915,10 +915,68 @@ function clearActiveNightRole() {
 }
 
 function confirmNightAction() {
-    if (gameState.currentNightRole) {
-        addLogEntry('Ночное действие', `${roleDefinitions[gameState.currentNightRole]?.name || gameState.currentNightRole} завершил действие`);
-        clearActiveNightRole();
+    if (!selectedTargetId || !gameState.currentNightRole) {
+        alert('Выберите цель для действия!');
+        return;
     }
+    
+    const targetPlayer = gameState.players.find(p => p.id === selectedTargetId);
+    const role = nightRoles[gameState.currentNightRole];
+    
+    if (!targetPlayer) {
+        alert('Игрок не найден!');
+        return;
+    }
+    
+    // Записываем действие - исправляем ошибку с undefined
+    const actionResult = `${role ? role.name : gameState.currentNightRole} ${role ? role.action : 'действует на'}: ${targetPlayer.name}`;
+    
+    gameState.nightActions.push({
+        role: gameState.currentNightRole,
+        roleData: role,
+        targetId: selectedTargetId,
+        targetName: targetPlayer.name,
+        actionResult: actionResult,
+        timestamp: new Date()
+    });
+    
+    addLogEntry(`${role ? role.emoji : '🌙'} ${actionResult}`);
+    
+    // ПРИМЕНЯЕМ ЭФФЕКТЫ К ИГРОКАМ
+    applyNightAction(gameState.currentNightRole, selectedTargetId);
+    
+    // Комиссар: показать всплывающую подсказку (палец вверх/вниз)
+    if (gameState.currentNightRole === 'sheriff') {
+        const isMafia = ['mafia','don','consigliere'].includes(targetPlayer.role);
+        showToast(isMafia ? 'success' : 'info', isMafia ? '👍' : '👎', isMafia ? 'Этот игрок — мафия' : 'Этот игрок — не мафия');
+    }
+    
+    // Обновляем историю ходов в реальном времени
+    updateNightHistoryContent();
+    scheduleSave(); // Автосохранение при подтверждении ночного действия
+    
+    // ОБНОВЛЯЕМ центральный интерфейс с результатом действия
+    const centerActions = document.getElementById('centerActions');
+    if (centerActions && role) {
+        centerActions.innerHTML = `
+            <div style="background: ${role.color}; color: white; padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 10px 0;">${role.emoji} Действие выполнено!</h3>
+                <p style="margin: 0; font-size: 16px; opacity: 0.9;">${role.hint}: ${targetPlayer.name}</p>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <p style="color: #2ed573; font-size: 14px;">Переход к следующей роли через 2 секунды...</p>
+            </div>
+        `;
+    }
+    
+    // НЕ сбрасываем currentNightRole здесь, это делается в nextNightRole()
+    console.log('✅ Night action confirmed:', actionResult);
+    
+    // Автоматически переходим к следующей роли через 2 секунды
+    setTimeout(() => {
+        nextNightRole();
+    }, 2000);
 }
 
 function switchToDay() {
@@ -2592,9 +2650,16 @@ function updateNightPhaseHighlighting() {
     // Add or remove night-phase class based on current phase
     if (gameState.phase === 'night' || gameState.phase === 'firstNight') {
         gameTable.classList.add('night-phase');
+        // Special highlighting for first night: show only mafia roles
+        if (gameState.phase === 'firstNight') {
+            gameTable.classList.add('mafia-intro');
+        } else {
+            gameTable.classList.remove('mafia-intro');
+        }
         console.log('🌙 Night phase highlighting activated');
     } else {
         gameTable.classList.remove('night-phase');
+        gameTable.classList.remove('mafia-intro');
         console.log('☀️ Night phase highlighting deactivated');
     }
 }
@@ -3289,66 +3354,6 @@ function handleNightAction(playerId) {
     selectTarget(playerId);
 }
 
-// Подтверждение ночного действия с визуальными подсказками
-function confirmNightAction() {
-    if (!selectedTargetId || !gameState.currentNightRole) {
-        alert('Выберите цель для действия!');
-        return;
-    }
-    
-    const targetPlayer = gameState.players.find(p => p.id === selectedTargetId);
-    const role = nightRoles[gameState.currentNightRole];
-    
-    if (!targetPlayer) {
-        alert('Игрок не найден!');
-        return;
-    }
-    
-    // Записываем действие - исправляем ошибку с undefined
-    const actionResult = `${role ? role.name : gameState.currentNightRole} ${role ? role.action : 'действует на'}: ${targetPlayer.name}`;
-    
-    gameState.nightActions.push({
-        role: gameState.currentNightRole,
-        roleData: role,
-        targetId: selectedTargetId,
-        targetName: targetPlayer.name,
-        actionResult: actionResult,
-        timestamp: new Date()
-    });
-    
-    addLogEntry(`${role ? role.emoji : '🌙'} ${actionResult}`);
-    
-    // ПРИМЕНЯЕМ ЭФФЕКТЫ К ИГРОКАМ
-    applyNightAction(gameState.currentNightRole, selectedTargetId);
-    
-    // Обновляем историю ходов в реальном времени
-    updateNightHistoryContent();
-    scheduleSave(); // Автосохранение при подтверждении ночного действия
-    
-    // ОБНОВЛЯЕМ центральный интерфейс с результатом действия
-    const centerActions = document.getElementById('centerActions');
-    if (centerActions && role) {
-        centerActions.innerHTML = `
-            <div style="background: ${role.color}; color: white; padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px;">
-                <h3 style="margin: 0 0 10px 0;">${role.emoji} Действие выполнено!</h3>
-                <p style="margin: 0; font-size: 16px; opacity: 0.9;">${role.hint}: ${targetPlayer.name}</p>
-            </div>
-            
-            <div style="text-align: center; margin-top: 20px;">
-                <p style="color: #2ed573; font-size: 14px;">Переход к следующей роли через 2 секунды...</p>
-            </div>
-        `;
-    }
-    
-    // НЕ сбрасываем currentNightRole здесь, это делается в nextNightRole()
-    console.log('✅ Night action confirmed:', actionResult);
-    
-    // Автоматически переходим к следующей роли через 2 секунды
-    setTimeout(() => {
-        nextNightRole();
-    }, 2000);
-}
-
 // Применение эффектов ночных действий к игрокам - РАСШИРЕННАЯ ВЕРСИЯ
 function applyNightAction(roleType, targetId) {
     const targetPlayer = gameState.players.find(p => p.id === targetId);
@@ -3875,32 +3880,130 @@ function finishNight() {
 
 // Показ итоговой сводки ночи согласно ТЗ
 function showNightSummary(logs) {
-    if (logs.length === 0) {
-        alert('🌙 Итоги ночи:\n\nНичего не произошло - все спали спокойно.');
-        return;
-    }
-    
-    const summaryText = '🌙 Итоги ночи:\n\n' + logs.join('\n');
-    alert(summaryText);
+    // Построить структурированную сводку
+    const parsed = parseNightSummary(logs || []);
+    showNightSummaryModal(parsed);
     
     // Также добавляем в историю игры
-    logs.forEach(log => addLogEntry(log));
+    (logs || []).forEach(log => addLogEntry(log));
 }
 
-// Очистка визуальных эффектов ночи
-function clearNightVisualEffects() {
-    const allSeats = document.querySelectorAll('.player-seat');
-    allSeats.forEach(seat => {
-        // Убираем классы эффектов
-        seat.classList.remove('marked-for-death', 'healed', 'loved', 'recruited', 'checked', 'blocked', 'mined', 'targeted');
-        
-        // Убираем иконки эффектов (кроме постоянных как jailed)
-        const tempEffectIcons = seat.querySelectorAll('.effect-icon:not(.permanent)');
-        tempEffectIcons.forEach(icon => icon.remove());
+function parseNightSummary(logs) {
+    const byMafia = [];
+    const byManiac = [];
+    const byBomb = [];
+    const byKamikaze = [];
+    const savedByDoctor = [];
+    const savedByLover = [];
+    const jailed = [];
+    
+    logs.forEach(line => {
+        if (line.includes('🔫 Мафия убила:')) byMafia.push(line.split(':').slice(1).join(':').trim());
+        if (line.includes('🔪 Маньяк убил:')) byManiac.push(line.split(':').slice(1).join(':').trim());
+        if (line.includes('💣 Подрывник пал')) {
+            const names = line.split('унёс:')[1]?.trim();
+            if (names) byBomb.push(names);
+        }
+        if (line.includes('💥 Камикадзе атаковал') && line.includes('оба погибли')) {
+            const name = line.split('Камикадзе атаковал')[1]?.split('→')[0]?.trim();
+            if (name) byKamikaze.push(name);
+        }
+        if (line.includes('💉 Доктор вылечил:')) savedByDoctor.push(line.split(':').slice(1).join(':').trim());
+        if (line.includes('под защитой Любовницы') || line.includes('Любовница: ночь с')) {
+            const name = line.includes('Любовница: ночь с') ? line.split('ночь с')[1]?.trim() : line.split('(')[1]?.split(')')[0];
+            if (name) savedByLover.push(name);
+        }
+        if (line.includes('🔒 Тюремщик арестовал:')) jailed.push(line.split(':').slice(1).join(':').trim());
     });
     
-    // Обновляем отображение игроков
-    updatePlayerTable();
+    return { byMafia, byManiac, byBomb, byKamikaze, savedByDoctor, savedByLover, jailed };
+}
+
+function showNightSummaryModal(summary) {
+    // Удаляем предыдущий модал если есть
+    const prev = document.getElementById('nightSummaryOverlay');
+    if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'nightSummaryOverlay';
+    overlay.className = 'night-summary-overlay';
+    
+    const content = document.createElement('div');
+    content.className = 'night-summary-content';
+    
+    let deathsSection = '';
+    const anyDeaths = summary.byMafia.length || summary.byManiac.length || summary.byBomb.length || summary.byKamikaze.length;
+    if (!anyDeaths) {
+        deathsSection = `<div class="summary-line">🌙 В эту ночь никто не умер</div>`;
+    } else {
+        if (summary.byMafia.length) {
+            deathsSection += `<div class="summary-line">🔫 Убиты мафией: <strong>${summary.byMafia.join(', ')}</strong></div>`;
+        }
+        if (summary.byManiac.length) {
+            deathsSection += `<div class="summary-line">🔪 Убиты маньяком: <strong>${summary.byManiac.join(', ')}</strong></div>`;
+        }
+        if (summary.byBomb.length) {
+            deathsSection += `<div class="summary-line">💣 Взрыв унёс: <strong>${summary.byBomb.join(', ')}</strong></div>`;
+        }
+        if (summary.byKamikaze.length) {
+            deathsSection += `<div class="summary-line">💥 Камикадзе забрал: <strong>${summary.byKamikaze.join(', ')}</strong></div>`;
+        }
+    }
+    
+    let footerSection = '';
+    const footLines = [];
+    if (summary.savedByLover.length) footLines.push(`💋 Любовница спасла: <strong>${[...new Set(summary.savedByLover)].join(', ')}</strong>`);
+    if (summary.savedByDoctor.length) footLines.push(`💉 Доктор вылечил: <strong>${[...new Set(summary.savedByDoctor)].join(', ')}</strong>`);
+    if (summary.jailed.length) footLines.push(`🔒 Тюремщик арестовал: <strong>${[...new Set(summary.jailed)].join(', ')}</strong>`);
+    if (footLines.length) {
+        footerSection = `<div class="summary-divider"></div><div class="summary-footer">${footLines.map(l => `<div class="summary-line">${l}</div>`).join('')}</div>`;
+    }
+    
+    content.innerHTML = `
+        <h3 class="night-summary-title">🌙 Итоги ночи</h3>
+        <div class="night-summary-body">
+            ${deathsSection}
+        </div>
+        ${footerSection}
+        <div class="night-summary-actions">
+            <button class="modal-btn confirm" id="closeNightSummaryBtn">OK</button>
+        </div>
+    `;
+    
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+    
+    const closeBtn = document.getElementById('closeNightSummaryBtn');
+    if (closeBtn) closeBtn.onclick = () => {
+        if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    };
+}
+
+// Простая система всплывающих подсказок справа
+function ensureToastContainer() {
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+    return container;
+}
+
+function showToast(kind, emoji, text) {
+    const container = ensureToastContainer();
+    const toast = document.createElement('div');
+    toast.className = `toast ${kind || 'info'}`;
+    toast.innerHTML = `<span class="emoji">${emoji || 'ℹ️'}</span><span>${text}</span>`;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => {
+            if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 250);
+    }, 3000);
 }
 
 // Night History Management
@@ -4400,6 +4503,9 @@ document.addEventListener('DOMContentLoaded', function() {
         voteCountContent.id = 'voteCountContent';
         if (voteCounter) voteCounter.appendChild(voteCountContent);
     }
+    
+    // Контейнер всплывающих подсказок справа
+    ensureToastContainer();
     
     // Проверяем активные игры
     checkActiveGame();
