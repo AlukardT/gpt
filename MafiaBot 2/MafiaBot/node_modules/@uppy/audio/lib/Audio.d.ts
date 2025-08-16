@@ -1,0 +1,35 @@
+import type { Body, Meta, UIPluginOptions, Uppy } from '@uppy/core';
+import { UIPlugin } from '@uppy/core';
+import type { LocaleStrings } from '@uppy/utils/lib/Translator';
+import { h } from 'preact';
+import locale from './locale.js';
+export interface AudioOptions extends UIPluginOptions {
+    showAudioSourceDropdown?: boolean;
+    locale?: LocaleStrings<typeof locale>;
+}
+interface AudioState {
+    audioReady: boolean;
+    recordingLengthSeconds: number;
+    recordedAudio: string | null | undefined;
+    hasAudio: boolean;
+    cameraError: null;
+    audioSources: MediaDeviceInfo[];
+    currentDeviceId: string | MediaStreamTrack | null | undefined;
+    isRecording: boolean;
+    showAudioSourceDropdown: boolean;
+    [id: string]: unknown;
+}
+/**
+ * Audio recording plugin
+ */
+export default class Audio<M extends Meta, B extends Body> extends UIPlugin<AudioOptions, M, B, AudioState> {
+    #private;
+    static VERSION: string;
+    private icon;
+    constructor(uppy: Uppy<M, B>, opts?: AudioOptions);
+    render(): h.JSX.Element;
+    install(): void;
+    uninstall(): void;
+}
+export {};
+//# sourceMappingURL=Audio.d.ts.map

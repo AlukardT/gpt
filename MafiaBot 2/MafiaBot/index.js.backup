@@ -1,0 +1,1281 @@
+const { Telegraf, Markup } = require('telegraf');
+const express = require('express');
+const path = require('path');
+require('dotenv').config();
+
+// Initialize bot with token from environment variables
+const bot = new Telegraf(process.env.BOT_TOKEN);
+
+// Initialize Express app for web server
+const app = express();
+app.use(express.json());
+app.use('/balagan', express.static(path.join(__dirname, 'mafia-balagan')));
+
+// In-memory data storage
+let events = {}; // Store events by ID
+let userProfiles = {}; // Store user profiles by Telegram ID
+let eventRegistrations = {}; // Store registrations by event ID
+let adminId = process.env.ADMIN_TELEGRAM_ID ? process.env.ADMIN_TELEGRAM_ID.toString() : null; // Admin Telegram ID
+let eventIdCounter = 1; // Auto-incrementing event ID
+let activeGames = {}; // Store active game states
+
+// Predefined Mafia game roles
+const mafiaRoles = [
+    'mafia', 'mafia', 'don', 'doctor', 'detective', 
+    'civilian', 'civilian', 'civilian', 'civilian', 'civilian',
+    'civilian', 'civilian', 'civilian', 'civilian', 'civilian',
+    'civilian', 'civilian', 'civilian', 'civilian', 'civilian'
+];
+
+// Helper function to get or create user profile
+function getUserProfile(userId, username) {
+    if (!userProfiles[userId]) {
+        userProfiles[userId] = {
+            id: userId,
+            username: username || 'Unknown',
+            nickname: null, // Game nickname set by admin
+            gamesPlayed: 0,
+            wins: 0,
+            losses: 0
+        };
+    }
+    // Update username if it has changed
+    if (username && userProfiles[userId].username !== username) {
+        userProfiles[userId].username = username;
+    }
+    return userProfiles[userId];
+}
+
+// Helper function to get upcoming events
+function getUpcomingEvents() {
+    const now = new Date();
+    console.log('📅 Current time:', now.toISOString());
+    console.log('📅 Available events:', Object.keys(events).length);
+    
+    const upcoming = Object.values(events).filter(event => {
+        const eventDate = new Date(`${event.date} ${event.time}`);
+        console.log(`📅 Event ${event.id}: ${event.date} ${event.time} -> ${eventDate.toISOString()}, Future: ${eventDate > now}`);
+        return eventDate > now;
+    });
+    
+    console.log('📅 Upcoming events count:', upcoming.length);
+    return upcoming;
+}
+
+// Helper function to get registered players count for an event
+function getRegisteredCount(eventId) {
+    if (!eventRegistrations[eventId]) return 0;
+    return Object.values(eventRegistrations[eventId]).reduce((total, reg) => total + reg.playerCount, 0);
+}
+
+// Start command - show main menu
+bot.start((ctx) => {
+    const userId = ctx.from.id;
+    const username = ctx.from.username;
+    
+    // Create user profile if doesn't exist
+    getUserProfile(userId, username);
+    
+    const isAdmin = userId.toString() === adminId;
+    const buttons = [[Markup.button.callback('🎭 Афиши', 'show_events')]];
+    
+    // Мини-приложения доступны только админу
+    if (isAdmin) {
+        const balaganUrl = process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/balagan/` : 'https://localhost:5000/balagan/';
+
+        buttons.push([Markup.button.webApp('🎭 Наша Мафия', balaganUrl)]);
+
+    }
+    
+    const keyboard = Markup.inlineKeyboard(buttons);
+    
+    ctx.reply('Добро пожаловать в бот для игр в Мафию! 🎭\n\nИспользуйте меню ниже для навигации:', keyboard);
+});
+
+// Show posters with navigation
+// Убираем старый обработчик - он перенесен в main-server.js
+// bot.action('show_events', (ctx) => {
+//     const upcomingEvents = getUpcomingEvents();
+//     
+//     if (upcomingEvents.length === 0) {
+//         const keyboard = Markup.inlineKeyboard([
+//             [Markup.button.callback('🔙 Назад в меню', 'back_to_menu')]
+//         ]);
+//         ctx.editMessageText('🎭 Нет созданных афиш.\n\n💡 Администратор может создать событие командой /create_event', keyboard);
+//         return;
+//     }
+//     
+//     // Показываем первую афишу
+//     showPoster(ctx, 0, upcomingEvents);
+// });
+
+// Function to show a single poster with navigation
+function showPoster(ctx, index, events) {
+    const event = events[index];
+    const registeredCount = getRegisteredCount(event.id);
+    
+    // Форматируем дату
+    const eventDate = new Date(`${event.date} ${event.time}`);
+    const options = { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+    };
+    const formattedDate = eventDate.toLocaleDateString('ru-RU', options);
+    
+    const message = `🎭 Мафия — ближайшая игра!
+📅 Дата: ${formattedDate}
+🕖 Время: ${event.time}
+📍 Место: ${event.location}
+${event.address ? `📍 Адрес: ${event.address}\n` : ''}
+Приходи на захватывающую игру в Мафию!
+Погрузись в атмосферу интриг, неожиданных союзов и громких разоблачений.
+
+💡 Что тебя ждёт:
+        • Новые роли и неожиданные повороты сюжета
+        • Живое общение и море эмоций
+        • Удобный контроль через Telegram
+
+🎟 Записаться: нажми кнопку "Записаться" ниже.
+Количество мест ограничено — успей занять своё место за столом!`;
+
+    const buttons = [];
+    
+    // Кнопка "Следующее" если есть еще афиши
+    if (events.length > 1) {
+        const nextIndex = (index + 1) % events.length;
+        buttons.push([Markup.button.callback('➡️ Следующее', `poster_${nextIndex}`)]);
+    }
+    
+    // Иконка с количеством игроков
+    buttons.push([Markup.button.callback(`👥 ${registeredCount}/${event.capacity} игроков`, `players_${event.id}`)]);
+    
+    // Кнопка "Записаться"
+    buttons.push([Markup.button.callback('✍️ Записаться', `register_${event.id}`)]);
+    
+    // Кнопка "Назад"
+    buttons.push([Markup.button.callback('🔙 Назад', 'back_to_menu')]);
+    
+    const keyboard = Markup.inlineKeyboard(buttons);
+    
+    if (ctx.callbackQuery) {
+        ctx.editMessageText(message, keyboard);
+    } else {
+        ctx.reply(message, keyboard);
+    }
+}
+
+// Handle poster navigation
+bot.action(/poster_(\d+)/, (ctx) => {
+    const index = parseInt(ctx.match[1]);
+    const upcomingEvents = getUpcomingEvents();
+    
+    if (index >= 0 && index < upcomingEvents.length) {
+        showPoster(ctx, index, upcomingEvents);
+    }
+});
+
+// Show specific event details
+bot.action(/event_(\d+)/, (ctx) => {
+    const eventId = parseInt(ctx.match[1]);
+    const event = events[eventId];
+    
+    if (!event) {
+        ctx.answerCbQuery('Событие не найдено!');
+        return;
+    }
+    
+    const registeredCount = getRegisteredCount(eventId);
+    
+    let message = `🎯 *${event.title}*\n\n`;
+    message += `📍 *Место:* ${event.location}\n`;
+    message += `🏠 *Адрес:* ${event.address}\n`;
+    message += `📅 *Дата:* ${event.date}\n`;
+    message += `🕐 *Время:* ${event.time}\n`;
+    message += `👥 *Игроки:* ${registeredCount}/${event.capacity}\n`;
+    
+    const userId = ctx.from.id;
+    const isAlreadyRegistered = eventRegistrations[eventId] && eventRegistrations[eventId][userId];
+    
+    const buttons = [
+        [Markup.button.callback('👥 Посмотреть игроков', `players_${eventId}`)]
+    ];
+    
+    if (isAlreadyRegistered) {
+        buttons.push([Markup.button.callback('❌ Отменить запись', `cancel_${eventId}`)]);
+    } else {
+        buttons.push([Markup.button.callback('✅ Записаться на игру', `register_${eventId}`)]);
+    }
+    
+    // Мини-приложения доступны только админу
+    const isAdmin = userId.toString() === adminId;
+    if (isAdmin) {
+        const balaganUrl = process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/balagan/?eventId=${eventId}` : `https://localhost:5000/balagan/?eventId=${eventId}`;
+        buttons.push([Markup.button.webApp('🎭 Наша Мафия', balaganUrl)]);
+
+    }
+    
+    buttons.push([Markup.button.callback('🔙 Назад к событиям', 'show_events')]);
+    
+    const keyboard = Markup.inlineKeyboard(buttons);
+    ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+});
+
+// Show registered players for an event
+bot.action(/players_(\d+)/, (ctx) => {
+    const eventId = parseInt(ctx.match[1]);
+    const event = events[eventId];
+    
+    if (!event) {
+        try {
+            ctx.answerCbQuery('Событие не найдено!');
+        } catch (err) {
+            console.log('⚠️ Could not answer callback query (likely too old)');
+        }
+        return;
+    }
+    
+    let message = `👥 *Зарегистрированные игроки на ${event.title}:*\n\n`;
+    
+    if (!eventRegistrations[eventId] || Object.keys(eventRegistrations[eventId]).length === 0) {
+        message += 'Пока никого не зарегистрировалось.';
+    } else {
+        let playerNumber = 1;
+        Object.values(eventRegistrations[eventId]).forEach(reg => {
+            const username = reg.username || 'Неизвестный';
+            const userProfile = userProfiles[reg.userId];
+            const nickname = userProfile && userProfile.nickname ? userProfile.nickname : null;
+            
+            for (let i = 0; i < reg.playerCount; i++) {
+                let playerDisplay = `@${username}`;
+                if (nickname && i === 0) {
+                    playerDisplay += ` (${nickname})`;
+                }
+                if (i > 0) {
+                    playerDisplay += ` (доп${i})`;
+                }
+                message += `${playerNumber}. ${playerDisplay}\n`;
+                playerNumber++;
+            }
+        });
+    }
+    
+    const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Назад к событию', `event_${eventId}`)]
+    ]);
+    
+    ctx.editMessageText(message, keyboard);
+});
+
+// Show registration options
+bot.action(/register_(\d+)/, (ctx) => {
+    const eventId = parseInt(ctx.match[1]);
+    const event = events[eventId];
+    
+    if (!event) {
+        try {
+            ctx.answerCbQuery('Событие не найдено!');
+        } catch (err) {
+            console.log('⚠️ Could not answer callback query (likely too old)');
+        }
+        return;
+    }
+    
+    const registeredCount = getRegisteredCount(eventId);
+    const availableSpots = event.capacity - registeredCount;
+    
+    if (availableSpots <= 0) {
+        ctx.answerCbQuery('Событие заполнено!');
+        return;
+    }
+    
+    const userId = ctx.from.id;
+    const isAlreadyRegistered = eventRegistrations[eventId] && eventRegistrations[eventId][userId];
+    
+    if (isAlreadyRegistered) {
+        ctx.answerCbQuery('Вы уже зарегистрированы на это событие!');
+        return;
+    }
+    
+    let message = `📝 *Запись на игру "${event.title}"*\n\n`;
+    message += `Свободно мест: ${availableSpots}\n\n`;
+    message += 'Сколько человек будет участвовать?';
+    
+    const buttons = [];
+    for (let i = 1; i <= Math.min(4, availableSpots); i++) {
+        const text = i === 1 ? "Я приду" : `Я с ${i - 1} доп`;
+        buttons.push([Markup.button.callback(text, `confirm_reg_${eventId}_${i}`)]);
+    }
+    buttons.push([Markup.button.callback('🔙 Назад к событию', `event_${eventId}`)]);
+    
+    const keyboard = Markup.inlineKeyboard(buttons);
+    ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+});
+
+// Confirm registration
+bot.action(/confirm_reg_(\d+)_(\d+)/, (ctx) => {
+    const eventId = parseInt(ctx.match[1]);
+    const playerCount = parseInt(ctx.match[2]);
+    const userId = ctx.from.id;
+    const username = ctx.from.username;
+    
+    const event = events[eventId];
+    if (!event) {
+        ctx.answerCbQuery('Событие не найдено!');
+        return;
+    }
+    
+    // Initialize event registrations if not exists
+    if (!eventRegistrations[eventId]) {
+        eventRegistrations[eventId] = {};
+    }
+    
+    // Check if user is already registered
+    if (eventRegistrations[eventId][userId]) {
+        ctx.answerCbQuery('Вы уже зарегистрированы!');
+        return;
+    }
+    
+    // Check capacity
+    const currentCount = getRegisteredCount(eventId);
+    if (currentCount + playerCount > event.capacity) {
+        ctx.answerCbQuery('Не хватает свободных мест!');
+        return;
+    }
+    
+    // Register user
+    eventRegistrations[eventId][userId] = {
+        userId: userId,
+        username: username,
+        playerCount: playerCount,
+        registeredAt: new Date()
+    };
+    
+    ctx.answerCbQuery('✅ Вы успешно записались на игру!');
+    
+    // Show updated event details
+    const registeredCount = getRegisteredCount(eventId);
+    let message = `🎯 *${event.title}*\n\n`;
+    message += `📍 *Место:* ${event.location}\n`;
+    message += `🏠 *Адрес:* ${event.address}\n`;
+    message += `📅 *Дата:* ${event.date}\n`;
+    message += `🕐 *Время:* ${event.time}\n`;
+    message += `👥 *Игроки:* ${registeredCount}/${event.capacity}\n\n`;
+    message += `✅ Вы записались на игру на ${playerCount} ${playerCount === 1 ? 'человека' : 'человек'}!`;
+    
+    const buttons = [
+        [Markup.button.callback('👥 Посмотреть игроков', `players_${eventId}`)],
+        [Markup.button.callback('❌ Отменить запись', `cancel_${eventId}`)],
+        [Markup.button.callback('🔙 Назад к афишам', 'show_events')]
+    ];
+    
+    const keyboard = Markup.inlineKeyboard(buttons);
+    ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+});
+
+// Cancel registration
+bot.action(/cancel_(\d+)/, (ctx) => {
+    const eventId = parseInt(ctx.match[1]);
+    const userId = ctx.from.id;
+    const event = events[eventId];
+    
+    if (!event) {
+        ctx.answerCbQuery('Событие не найдено!');
+        return;
+    }
+    
+    // Check if user is registered
+    if (!eventRegistrations[eventId] || !eventRegistrations[eventId][userId]) {
+        ctx.answerCbQuery('Вы не записаны на это событие!');
+        return;
+    }
+    
+    // Remove user registration
+    delete eventRegistrations[eventId][userId];
+    
+    ctx.answerCbQuery('❌ Ваша запись отменена!');
+    
+    // Show updated event details
+    const registeredCount = getRegisteredCount(eventId);
+    let message = `🎯 *${event.title}*\n\n`;
+    message += `📍 *Место:* ${event.location}\n`;
+    message += `🏠 *Адрес:* ${event.address}\n`;
+    message += `📅 *Дата:* ${event.date}\n`;
+    message += `🕐 *Время:* ${event.time}\n`;
+    message += `👥 *Игроки:* ${registeredCount}/${event.capacity}\n\n`;
+    message += `❌ Ваша запись на игру отменена.`;
+    
+    const buttons = [
+        [Markup.button.callback('👥 Посмотреть игроков', `players_${eventId}`)],
+        [Markup.button.callback('✅ Записаться на игру', `register_${eventId}`)],
+        [Markup.button.callback('🔙 Назад к афишам', 'show_events')]
+    ];
+    
+    const keyboard = Markup.inlineKeyboard(buttons);
+    ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+});
+
+// Back to main menu
+bot.action('back_to_menu', (ctx) => {
+    const isAdmin = ctx.from.id.toString() === adminId;
+    const buttons = [[Markup.button.callback('🎭 Афиши', 'show_events')]];
+    
+    // Мини-приложения доступны только админу
+    if (isAdmin) {
+        const balaganUrl = process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/balagan/` : 'https://localhost:5000/balagan/';
+
+        buttons.push([Markup.button.webApp('🎭 Наша Мафия', balaganUrl)]);
+
+    }
+    
+    const keyboard = Markup.inlineKeyboard(buttons);
+    
+    ctx.editMessageText('Добро пожаловать в бот для игр в Мафию! 🎭\n\nИспользуйте меню ниже для навигации:', keyboard);
+});
+
+// Command to check admin status
+bot.command('check_admin', (ctx) => {
+    const userId = ctx.from.id.toString();
+    const isAdmin = userId === adminId;
+    
+    let message = `🔍 *Проверка админских прав:*\n\n`;
+    message += `🆔 Ваш ID: ${userId}\n`;
+    message += `👑 Админ ID: ${adminId || 'не установлен'}\n`;
+    message += `🛡️ Статус: ${isAdmin ? '👑 Администратор' : '👤 Обычный пользователь'}\n\n`;
+    
+    if (!isAdmin) {
+        message += `💡 Чтобы стать админом, используйте: /set_admin`;
+    }
+    
+    ctx.reply(message, { parse_mode: 'Markdown' });
+});
+
+// Admin command to open virtual table
+bot.command('table', (ctx) => {
+    const userId = ctx.from.id.toString();
+    
+    if (userId !== adminId) {
+        ctx.reply(`❌ Только администраторы могут открывать виртуальный стол!\n\n🆔 Ваш ID: ${userId}\n👑 Админ ID: ${adminId || 'не установлен'}`);
+        return;
+    }
+    
+    const balaganUrl = process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/balagan/` : 'https://localhost:5000/balagan/';
+    const keyboard = Markup.inlineKeyboard([
+        [Markup.button.webApp('🎭 Наша Мафия', balaganUrl)]
+    ]);
+    
+    ctx.reply('🎭 Открыть Нашу Мафию для управления игрой:', keyboard);
+});
+
+// Admin command to set admin
+bot.command('set_admin', (ctx) => {
+    // Allow anyone to set themselves as admin initially (can be modified for security)
+    const newAdminId = ctx.from.id.toString();
+    adminId = newAdminId;
+    console.log(`👑 New admin set: ID = ${adminId}`);
+    ctx.reply(`✅ Вы назначены администратором!\n🆔 Ваш админ ID: ${adminId}`);
+});
+
+// Admin command to create event
+bot.command('create_event', (ctx) => {
+    const userId = ctx.from.id.toString();
+    
+    console.log(`🔍 Admin check: User ID = ${userId}, Admin ID = ${adminId}`);
+    
+    if (userId !== adminId) {
+        ctx.reply(`❌ Только администраторы могут создавать события!\n\n🆔 Ваш ID: ${userId}\n👑 Админ ID: ${adminId || 'не установлен'}\n\n💡 Используйте /set_admin чтобы стать администратором`);
+        return;
+    }
+    
+    const args = ctx.message.text.split('\n').slice(1); // Skip the command line
+    
+    if (args.length < 6) {
+        ctx.reply(`❌ Пожалуйста, укажите все детали события в этом формате:
+/create_event
+Название
+Место
+Адрес
+Дата (YYYY-MM-DD)
+Время (HH:MM)
+Кол-во мест
+
+Пример:
+/create_event
+Еженедельная Мафия
+Парк Горького
+ул. Парковая, 123, Москва
+2025-08-15
+19:00
+20`);
+        return;
+    }
+    
+    const [title, location, address, date, time, capacity] = args;
+    
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) {
+        ctx.reply('❌ Please use YYYY-MM-DD format for date!');
+        return;
+    }
+    
+    // Validate time format
+    const timeRegex = /^\d{2}:\d{2}$/;
+    if (!timeRegex.test(time)) {
+        ctx.reply('❌ Please use HH:MM format for time!');
+        return;
+    }
+    
+    // Validate capacity
+    const capacityNum = parseInt(capacity);
+    if (isNaN(capacityNum) || capacityNum <= 0) {
+        ctx.reply('❌ Capacity must be a positive number!');
+        return;
+    }
+    
+    // Create event
+    const eventId = eventIdCounter++;
+    events[eventId] = {
+        id: eventId,
+        title: title.trim(),
+        location: location.trim(),
+        address: address.trim(),
+        date: date.trim(),
+        time: time.trim(),
+        capacity: capacityNum,
+        createdBy: userId,
+        createdAt: new Date()
+    };
+    
+    console.log('✅ Event created:', eventId, title, date, time);
+    console.log('📊 Total events now:', Object.keys(events).length);
+    
+    ctx.reply(`✅ Событие успешно создано!
+🎯 *${title}*
+📍 ${location}
+🏠 ${address}
+📅 ${date} в ${time}
+👥 Мест: ${capacityNum} игроков
+🆔 ID события: ${eventId}
+
+💡 Пользователи могут увидеть это событие в разделе "📅 События"`, { parse_mode: 'Markdown' });
+});
+
+// Admin command to start game
+bot.command('start_game', async (ctx) => {
+    const userId = ctx.from.id.toString();
+    
+    console.log(`🎮 Game start check: User ID = ${userId}, Admin ID = ${adminId}`);
+    
+    if (userId !== adminId) {
+        ctx.reply(`❌ Только администраторы могут запускать игры!\n\n🆔 Ваш ID: ${userId}\n👑 Админ ID: ${adminId || 'не установлен'}`);
+        return;
+    }
+    
+    const args = ctx.message.text.split(' ');
+    if (args.length < 2) {
+        ctx.reply('❌ Please provide event ID: /start_game [event_id]');
+        return;
+    }
+    
+    const eventId = parseInt(args[1]);
+    const event = events[eventId];
+    
+    if (!event) {
+        ctx.reply('❌ Событие не найдено!');
+        return;
+    }
+    
+    if (!eventRegistrations[eventId] || Object.keys(eventRegistrations[eventId]).length === 0) {
+        ctx.reply('❌ На это событие не зарегистрировано игроков!');
+        return;
+    }
+    
+    // Get all registered players
+    const registrations = Object.values(eventRegistrations[eventId]);
+    const players = [];
+    
+    registrations.forEach(reg => {
+        for (let i = 0; i < reg.playerCount; i++) {
+            players.push({
+                userId: reg.userId,
+                username: reg.username,
+                isMainPlayer: i === 0
+            });
+        }
+    });
+    
+    if (players.length < 4) {
+        ctx.reply('❌ Нужно минимум 4 игрока для начала игры!');
+        return;
+    }
+    
+    // Shuffle players and assign roles
+    const shuffledPlayers = players.sort(() => Math.random() - 0.5);
+    const gameRoles = mafiaRoles.slice(0, players.length);
+    const shuffledRoles = gameRoles.sort(() => Math.random() - 0.5);
+    
+    // Initialize game in activeGames
+    activeGames[eventId] = {
+        phase: 'day',
+        isActive: true,
+        players: [],
+        gameLog: [],
+        lastUpdated: new Date()
+    };
+    
+    ctx.reply(`🎮 Starting game for "${event.title}"!\n👥 ${players.length} players\n📤 Sending roles privately...\n\n🎭 Откройте Mafia BALAGAN для управления игрой!`);
+    
+    // Send roles privately to each player and update game state
+    for (let i = 0; i < shuffledPlayers.length; i++) {
+        const player = shuffledPlayers[i];
+        const role = shuffledRoles[i];
+        
+        // Add to active game
+        activeGames[eventId].players.push({
+            id: i + 1,
+            name: player.username,
+            nickname: userProfiles[player.userId] && userProfiles[player.userId].nickname ? userProfiles[player.userId].nickname : null,
+            role: role,
+            status: 'alive',
+            userId: player.userId
+        });
+        
+        try {
+            // Only send role to main players (not +1, +2, etc.)
+            if (player.isMainPlayer) {
+                await bot.telegram.sendMessage(
+                    player.userId,
+                    `🎭 *Your role in "${event.title}":*\n\n🔥 **${role.toUpperCase()}**\n\nGood luck! 🍀`,
+                    { parse_mode: 'Markdown' }
+                );
+                
+                // Update user profile
+                const userProfile = getUserProfile(player.userId, player.username);
+                userProfile.gamesPlayed++;
+            }
+        } catch (error) {
+            console.log(`Failed to send role to user ${player.userId}:`, error.message);
+            ctx.reply(`⚠️ Не удалось отправить роль @${player.username}. Возможно, он должен сначала запустить бота.`);
+        }
+    }
+    
+    // Add game application button
+    const balaganUrl = process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/balagan/?eventId=${eventId}` : `https://localhost:5000/balagan/?eventId=${eventId}`;
+    const gameKeyboard = Markup.inlineKeyboard([
+        [Markup.button.webApp('🎭 Mafia BALAGAN', balaganUrl)]
+    ]);
+    
+    ctx.reply('🎭 Игра началась! Выберите приложение для управления:', gameKeyboard);
+    
+    // Send summary to admin
+    let summary = `✅ Игра успешно запущена!\n\n👥 *Роли игроков:*\n`;
+    for (let i = 0; i < shuffledPlayers.length; i++) {
+        const player = shuffledPlayers[i];
+        const role = shuffledRoles[i];
+        summary += `• @${player.username}: ${role}\n`;
+    }
+    
+    ctx.reply(summary, { parse_mode: 'Markdown' });
+});
+
+// Command to show user profile
+bot.command('profile', (ctx) => {
+    const userId = ctx.from.id;
+    const username = ctx.from.username;
+    const profile = getUserProfile(userId, username);
+    
+    let message = `👤 *Ваш Профиль:*\n\n`;
+    message += `🆔 ID: ${profile.id}\n`;
+    message += `👤 Ник: @${profile.username}\n`;
+    if (profile.nickname) {
+        message += `🎭 Игровой псевдоним: ${profile.nickname}\n`;
+    }
+    message += `🎮 Игр сыграно: ${profile.gamesPlayed}\n`;
+    message += `🏆 Победы: ${profile.wins}\n`;
+    message += `💀 Поражения: ${profile.losses}\n`;
+    
+    if (profile.gamesPlayed > 0) {
+        const winRate = ((profile.wins / profile.gamesPlayed) * 100).toFixed(1);
+        message += `📊 Процент побед: ${winRate}%`;
+    }
+    
+    ctx.reply(message, { parse_mode: 'Markdown' });
+});
+
+// Admin command to set player nickname
+bot.command('set_nickname', (ctx) => {
+    const userId = ctx.from.id.toString();
+    
+    if (userId !== adminId) {
+        ctx.reply(`❌ Только администраторы могут устанавливать псевдонимы!\n\n🆔 Ваш ID: ${userId}\n👑 Админ ID: ${adminId || 'не установлен'}`);
+        return;
+    }
+    
+    const args = ctx.message.text.split(' ').slice(1);
+    if (args.length < 2) {
+        ctx.reply('❌ Использование: /set_nickname @username псевдоним\n\nПример: /set_nickname @john_doe Джокер');
+        return;
+    }
+    
+    const targetUsername = args[0].replace('@', '');
+    const nickname = args.slice(1).join(' ');
+    
+    // Find user by username
+    const targetUser = Object.values(userProfiles).find(profile => 
+        profile.username && profile.username.toLowerCase() === targetUsername.toLowerCase()
+    );
+    
+    if (!targetUser) {
+        ctx.reply(`❌ Пользователь @${targetUsername} не найден. Убедитесь, что он использовал бота хотя бы один раз.`);
+        return;
+    }
+    
+    // Set nickname
+    targetUser.nickname = nickname;
+    
+    ctx.reply(`✅ Псевдоним установлен!\n👤 @${targetUser.username} → 🎭 ${nickname}`);
+});
+
+// Command to get user's Telegram ID
+bot.command('myid', (ctx) => {
+    const userId = ctx.from.id;
+    const username = ctx.from.username || 'нет username';
+    const firstName = ctx.from.first_name || '';
+    const lastName = ctx.from.last_name || '';
+    
+    ctx.reply(`🆔 *Ваш Telegram ID:*\n\n📱 ID: \`${userId}\`\n👤 Имя: ${firstName} ${lastName}\n🔗 Username: @${username}\n\n💡 Скопируйте ID для добавления в игру`, { parse_mode: 'Markdown' });
+});
+
+// Command to open Mafia BALAGAN web app (admin only)
+bot.command('balagan', (ctx) => {
+    const userId = ctx.from.id.toString();
+    
+    if (userId !== adminId) {
+        ctx.reply(`❌ Только администраторы могут открывать стол Мафии!\n\n🆔 Ваш ID: ${userId}\n👑 Админ ID: ${adminId || 'не установлен'}\n\n💡 Пользователи могут посмотреть события через /start`);
+        return;
+    }
+    
+    const balaganUrl = process.env.REPLIT_DEV_DOMAIN ? 
+        `https://${process.env.REPLIT_DEV_DOMAIN}/balagan/` : 
+        'https://localhost:5000/balagan/';
+    
+    const keyboard = Markup.inlineKeyboard([
+        [Markup.button.webApp('🎭 Открыть стол Мафии', balaganUrl)]
+    ]);
+    
+    ctx.reply(`🎭 *Mafia BALAGAN*
+    
+Стол для проведения игр в Мафию с:
+• Управлением игроками и ролями
+• Ночными действиями с подсказками  
+• Системой голосования
+• Историей игры
+
+Нажмите кнопку ниже для открытия:`, { 
+        parse_mode: 'Markdown', 
+        ...keyboard 
+    });
+});
+
+// Admin command to remove player nickname
+bot.command('remove_nickname', (ctx) => {
+    const userId = ctx.from.id.toString();
+    
+    if (userId !== adminId) {
+        ctx.reply(`❌ Только администраторы могут удалять псевдонимы!\n\n🆔 Ваш ID: ${userId}\n👑 Админ ID: ${adminId || 'не установлен'}`);
+        return;
+    }
+    
+    const args = ctx.message.text.split(' ').slice(1);
+    if (args.length < 1) {
+        ctx.reply('❌ Использование: /remove_nickname @username\n\nПример: /remove_nickname @john_doe');
+        return;
+    }
+    
+    const targetUsername = args[0].replace('@', '');
+    
+    // Find user by username
+    const targetUser = Object.values(userProfiles).find(profile => 
+        profile.username && profile.username.toLowerCase() === targetUsername.toLowerCase()
+    );
+    
+    if (!targetUser) {
+        ctx.reply(`❌ Пользователь @${targetUsername} не найден.`);
+        return;
+    }
+    
+    if (!targetUser.nickname) {
+        ctx.reply(`❌ У пользователя @${targetUsername} нет псевдонима.`);
+        return;
+    }
+    
+    const oldNickname = targetUser.nickname;
+    targetUser.nickname = null;
+    
+    ctx.reply(`✅ Псевдоним удален!\n👤 @${targetUser.username} (был: 🎭 ${oldNickname})`);
+});
+
+// Admin command to list all players with nicknames
+bot.command('list_nicknames', (ctx) => {
+    const userId = ctx.from.id.toString();
+    
+    if (userId !== adminId) {
+        ctx.reply(`❌ Только администраторы могут просматривать список псевдонимов!\n\n🆔 Ваш ID: ${userId}\n👑 Админ ID: ${adminId || 'не установлен'}`);
+        return;
+    }
+    
+    const playersWithNicknames = Object.values(userProfiles).filter(profile => profile.nickname);
+    
+    if (playersWithNicknames.length === 0) {
+        ctx.reply('📝 Нет игроков с установленными псевдонимами.');
+        return;
+    }
+    
+    let message = '📝 *Список игроков с псевдонимами:*\n\n';
+    playersWithNicknames.forEach((profile, index) => {
+        message += `${index + 1}. @${profile.username} → 🎭 ${profile.nickname}\n`;
+    });
+    
+    ctx.reply(message, { parse_mode: 'Markdown' });
+});
+
+// Command to update game results (admin only)
+bot.command('update_wins', (ctx) => {
+    const userId = ctx.from.id.toString();
+    
+    if (userId !== adminId) {
+        ctx.reply(`❌ Только администраторы могут обновлять результаты игр!\n\n🆔 Ваш ID: ${userId}\n👑 Админ ID: ${adminId || 'не установлен'}`);
+        return;
+    }
+    
+    const args = ctx.message.text.split(' ').slice(1);
+    if (args.length === 0) {
+        ctx.reply('❌ Пожалуйста, укажите ники победителей: /update_wins @username1 @username2');
+        return;
+    }
+    
+    let updated = 0;
+    args.forEach(arg => {
+        const username = arg.replace('@', '');
+        // Find user by username
+        const user = Object.values(userProfiles).find(profile => 
+            profile.username && profile.username.toLowerCase() === username.toLowerCase()
+        );
+        
+        if (user) {
+            user.wins++;
+            updated++;
+        }
+    });
+    
+    ctx.reply(`✅ Обновлены победы для ${updated} игроков.`);
+});
+
+// Error handling
+bot.catch((err, ctx) => {
+    console.log(`Error for ${ctx.updateType}:`, err);
+    
+    // Handle old callback queries gracefully
+    if (err.message && (err.message.includes('query is too old') || err.message.includes('query ID is invalid'))) {
+        console.log('⚠️ Ignoring old callback query');
+        return;
+    }
+    
+    if (ctx.answerCbQuery) {
+        try {
+            ctx.answerCbQuery('❌ Произошла ошибка. Попробуйте снова.');
+        } catch (callbackError) {
+            console.log('Could not answer callback query:', callbackError.message);
+        }
+    } else {
+        ctx.reply('❌ Произошла ошибка. Попробуйте снова.');
+    }
+});
+
+// Launch bot with cleanup
+console.log('🔄 Starting bot launch...');
+console.log('🔑 Bot token exists:', !!process.env.BOT_TOKEN);
+console.log('👤 Admin ID exists:', !!process.env.ADMIN_TELEGRAM_ID);
+console.log('👑 Admin ID value:', process.env.ADMIN_TELEGRAM_ID);
+console.log('🌐 Attempting to connect to Telegram...');
+
+bot.launch({
+    dropPendingUpdates: true
+})
+    .then(() => {
+        console.log('🤖 Бот для игр в Мафию запущен!');
+        console.log('📝 Инструкции:');
+        console.log('1. Установить токен бота в Replit Secrets');
+        console.log('2. Установить ID админа в Replit Secrets');
+        console.log('3. Пользователи могут начать с /start');
+        console.log('4. Админ может создавать события с /create_event');
+        console.log('5. Админ может запускать игры с /start_game [event_id]');
+        console.log('6. Используйте /set_admin для первой настройки');
+    })
+    .catch(err => {
+        console.error('❌ Failed to start bot:', err.message);
+        console.error('💡 Please check:');
+        console.error('1. Bot token is correct and active');
+        console.error('2. No other bot instance is running');
+        console.error('3. Network connection is stable');
+        process.exit(1);
+    });
+
+// API Routes for Web App
+
+// Get game data for specific event
+app.get('/api/game/:eventId', (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const event = events[eventId];
+    
+    if (!event) {
+        return res.status(404).json({ error: 'Event not found' });
+    }
+    
+    // Get players from event registrations
+    const players = [];
+    if (eventRegistrations[eventId]) {
+        let playerId = 1;
+        Object.values(eventRegistrations[eventId]).forEach(reg => {
+            const userProfile = userProfiles[reg.userId];
+            for (let i = 0; i < reg.playerCount; i++) {
+                players.push({
+                    id: playerId++,
+                    name: reg.username,
+                    nickname: userProfile && userProfile.nickname ? userProfile.nickname : null,
+                    role: null, // Will be assigned when game starts
+                    status: 'alive'
+                });
+            }
+        });
+    }
+    
+    const gameData = {
+        eventId: eventId,
+        title: event.title,
+        players: players,
+        phase: activeGames[eventId] ? activeGames[eventId].phase : 'waiting',
+        isActive: activeGames[eventId] ? activeGames[eventId].isActive : false
+    };
+    
+    res.json(gameData);
+});
+
+// Update game state
+app.post('/api/game/update', (req, res) => {
+    try {
+        const { eventId, phase, isActive, players, gameLog } = req.body;
+        
+        // If no eventId, use first available active game or create demo
+        let targetEventId = eventId;
+        if (!eventId) {
+            const activeEventIds = Object.keys(activeGames);
+            if (activeEventIds.length > 0) {
+                targetEventId = activeEventIds[0];
+            } else {
+                targetEventId = 'demo';
+            }
+        }
+        
+        // Update game state
+        if (!activeGames[targetEventId]) {
+            activeGames[targetEventId] = {};
+        }
+        
+        activeGames[targetEventId] = {
+            phase: phase || 'waiting',
+            isActive: isActive || false,
+            players: players || [],
+            gameLog: gameLog || [],
+            lastUpdated: new Date()
+        };
+        
+        res.json({ success: true, eventId: targetEventId });
+    } catch (error) {
+        console.error('Error updating game state:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// BALAGAN API Routes
+
+// Get game data for BALAGAN
+app.get('/api/balagan/game/:eventId', (req, res) => {
+    const eventId = parseInt(req.params.eventId);
+    const event = events[eventId];
+    
+    if (!event) {
+        return res.status(404).json({ error: 'Event not found' });
+    }
+    
+    // Get players from event registrations
+    const players = [];
+    if (eventRegistrations[eventId]) {
+        let playerId = 1;
+        Object.values(eventRegistrations[eventId]).forEach(reg => {
+            const userProfile = userProfiles[reg.userId];
+            for (let i = 0; i < reg.playerCount; i++) {
+                players.push({
+                    id: playerId++,
+                    name: reg.username,
+                    nickname: userProfile && userProfile.nickname ? userProfile.nickname : null,
+                    role: null, // Will be assigned when game starts
+                    status: 'alive',
+                    seatNumber: playerId // Default seat assignment
+                });
+            }
+        });
+    }
+    
+    const gameData = {
+        eventId: eventId,
+        title: event.title,
+        players: players,
+        phase: activeGames[eventId] ? activeGames[eventId].phase : 'setup',
+        isActive: activeGames[eventId] ? activeGames[eventId].isActive : false
+    };
+    
+    res.json(gameData);
+});
+
+// Assign roles in BALAGAN
+app.post('/api/balagan/assign-roles', async (req, res) => {
+    try {
+        const { players, gameMode } = req.body;
+        
+        // Send roles to players via Telegram
+        for (const player of players) {
+            if (player.role && player.username) {
+                try {
+                    // Find user ID by username
+                    const userProfile = Object.values(userProfiles).find(profile => 
+                        profile.username && profile.username.toLowerCase() === player.username.toLowerCase()
+                    );
+                    
+                    if (userProfile) {
+                        await bot.telegram.sendMessage(
+                            userProfile.id,
+                            `🎭 *Mafia BALAGAN - Ваша роль:*\n\n${getRoleEmoji(player.role)} **${getRoleName(player.role).toUpperCase()}**\n\nУдачи в игре! 🍀`,
+                            { parse_mode: 'Markdown' }
+                        );
+                    }
+                } catch (error) {
+                    console.log(`Failed to send role to user ${player.username}:`, error.message);
+                }
+            }
+        }
+        
+        res.json({ success: true, message: 'Roles assigned successfully' });
+    } catch (error) {
+        console.error('Error assigning roles:', error);
+        res.status(500).json({ error: 'Failed to assign roles' });
+    }
+});
+
+function getRoleEmoji(role) {
+    const roleEmojis = {
+        don: '👑',
+        mafia: '🔴',
+        consigliere: '🎭',
+        capo: '⚔️',
+        commissar: '🔍',
+        doctor: '💊',
+        lover: '💋',
+        bomber: '💣',
+        civilian: '👤',
+        maniac: '🔪',
+        kamikaze: '💥',
+        werewolf: '🐺'
+    };
+    return roleEmojis[role] || '❓';
+}
+
+function getRoleName(role) {
+    const roleNames = {
+        don: 'Дон',
+        mafia: 'Мафия',
+        consigliere: 'Консильери',
+        capo: 'Капо',
+        commissar: 'Комиссар',
+        doctor: 'Доктор',
+        lover: 'Любовница',
+        bomber: 'Подрывник',
+        civilian: 'Мирный житель',
+        maniac: 'Маньяк',
+        kamikaze: 'Камикадзе',
+        werewolf: 'Оборотень'
+    };
+    return roleNames[role] || 'Неизвестно';
+}
+
+// Add root route to redirect to Mafia BALAGAN
+// API endpoint to get upcoming events
+app.get('/api/events/upcoming', async (req, res) => {
+    try {
+        const upcomingEvents = Object.values(events)
+            .filter(event => {
+                const eventDate = new Date(`${event.date}T${event.time}`);
+                return eventDate > new Date();
+            })
+            .sort((a, b) => {
+                const dateA = new Date(`${a.date}T${a.time}`);
+                const dateB = new Date(`${b.date}T${b.time}`);
+                return dateA - dateB;
+            });
+        
+        res.json(upcomingEvents);
+    } catch (error) {
+        console.error('❌ Error fetching upcoming events:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// API endpoint to get event registrations
+app.get('/api/events/:eventId/registrations', async (req, res) => {
+    try {
+        const eventId = parseInt(req.params.eventId);
+        const registrations = eventRegistrations[eventId] || {};
+        
+        const registrationsList = Object.values(registrations).map(reg => ({
+            userId: reg.userId,
+            username: reg.username,
+            playerCount: reg.playerCount,
+            registeredAt: reg.registeredAt
+        }));
+        
+        res.json(registrationsList);
+    } catch (error) {
+        console.error('❌ Error fetching event registrations:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// API endpoint to send roles to players from web app
+app.post('/api/send-roles', async (req, res) => {
+    try {
+        const { players, gameTitle } = req.body;
+        
+        if (!players || !Array.isArray(players)) {
+            return res.status(400).json({ error: 'Players array is required' });
+        }
+        
+        console.log('📤 Sending roles to players:', players.length);
+        
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (const player of players) {
+            try {
+                // Найти Telegram ID игрока
+                let telegramId = null;
+                
+                // Использовать прямой Telegram ID если указан
+                if (player.telegramId && player.telegramId.length > 0) {
+                    telegramId = player.telegramId;
+                } else {
+                    // Поиск по username если есть
+                    if (player.username) {
+                        const userProfile = Object.values(userProfiles).find(profile => 
+                            profile.username && profile.username.toLowerCase() === player.username.toLowerCase()
+                        );
+                        if (userProfile) {
+                            telegramId = userProfile.id;
+                        }
+                    }
+                    
+                    // Поиск по nickname если username не дал результата
+                    if (!telegramId) {
+                        const userProfile = Object.values(userProfiles).find(profile => 
+                            profile.nickname && profile.nickname.toLowerCase() === player.name.toLowerCase()
+                        );
+                        if (userProfile) {
+                            telegramId = userProfile.id;
+                        }
+                    }
+                }
+                
+                if (telegramId) {
+                    const roleInfo = getRoleInfo(player.role);
+                    const message = `🎭 *Ваша роль в игре:*\n\n${roleInfo.emoji} **${roleInfo.name}**\n\n${roleInfo.description}\n\nУдачи! 🍀`;
+                    
+                    await bot.telegram.sendMessage(
+                        telegramId,
+                        message,
+                        { parse_mode: 'Markdown' }
+                    );
+                    
+                    console.log(`✅ Role sent to ${player.name} (ID: ${telegramId}) -> ${player.role}`);
+                    successCount++;
+                } else {
+                    console.log(`❌ Telegram ID not found for player: ${player.name} (@${player.username || 'no_username'})`);
+                    console.log(`💡 Add Telegram ID to player or have them use /start command in bot`);
+                    errorCount++;
+                }
+            } catch (error) {
+                console.error(`❌ Error sending role to ${player.name}:`, error);
+                errorCount++;
+            }
+        }
+        
+        const message = successCount > 0 ? 
+            `✅ Роли отправлены: ${successCount}/${players.length}` :
+            `⚠️ Роли не отправлены. Игроки должны запустить бота командой /start`;
+            
+        console.log(message);
+        
+        res.json({ 
+            success: true, 
+            sent: successCount, 
+            errors: errorCount,
+            message: message
+        });
+        
+    } catch (error) {
+        console.error('❌ Error in send-roles API:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Helper function to get role information
+function getRoleInfo(role) {
+    const roleMap = {
+        'don': { name: 'Дон Мафии', emoji: '👑', description: 'Вы лидер мафии. Принимайте стратегические решения и убивайте мирных жителей.' },
+        'mafia': { name: 'Мафия', emoji: '🔴', description: 'Вы член мафии. Работайте с командой, чтобы уничтожить всех мирных жителей.' },
+        'consigliere': { name: 'Консильери', emoji: '🎭', description: 'Вы советник мафии. Помогайте команде и вербуйте новых союзников.' },
+        'capo': { name: 'Капо', emoji: '⚔️', description: 'Вы капитан мафии. Блокируйте действия других игроков ночью.' },
+        'commissar': { name: 'Комиссар', emoji: '🔍', description: 'Вы следователь. Проверяйте игроков ночью, чтобы найти мафию.' },
+        'doctor': { name: 'Доктор', emoji: '💊', description: 'Вы лечите игроков ночью. Спасайте жизни и защищайте город.' },
+        'lover': { name: 'Любовница', emoji: '💋', description: 'Вы блокируете игроков ночью, не давая им действовать.' },
+        'bomber': { name: 'Подрывник', emoji: '💣', description: 'Вы минируете игроков. При вашей смерти взорвете последнюю цель.' },
+        'civilian': { name: 'Мирный житель', emoji: '👤', description: 'Вы обычный житель города. Голосуйте днем, чтобы найти мафию.' },
+        'maniac': { name: 'Маньяк', emoji: '🔪', description: 'Вы играете сам за себя. Убивайте игроков ночью.' },
+        'kamikaze': { name: 'Камикадзе', emoji: '💥', description: 'При голосовании за вас днем вы взрываете случайного игрока.' },
+        'werewolf': { name: 'Оборотень', emoji: '🐺', description: 'Вы нейтральная роль. Убивайте игроков когда активны.' }
+    };
+    
+    return roleMap[role] || { name: 'Неизвестная роль', emoji: '❓', description: 'Роль не определена.' };
+}
+
+app.get('/', (req, res) => {
+    res.redirect('/balagan/');
+});
+
+// Start web server
+const PORT = 5000;
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 Web server running on port ${PORT}`);
+    const webAppUrl = process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/` : 'https://localhost:5000/';
+    console.log(`🔗 Web App URL: ${webAppUrl}`);
+});
+
+// Enable graceful stop
+process.once('SIGINT', () => {
+    bot.stop('SIGINT');
+    process.exit(0);
+});
+process.once('SIGTERM', () => {
+    bot.stop('SIGTERM');
+    process.exit(0);
+});

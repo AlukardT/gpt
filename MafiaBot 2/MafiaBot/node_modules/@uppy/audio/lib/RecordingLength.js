@@ -1,0 +1,7 @@
+import { jsx as _jsx } from "preact/jsx-runtime";
+import { h } from 'preact';
+import formatSeconds from './formatSeconds.js';
+export default function RecordingLength({ recordingLengthSeconds, }) {
+    const formattedRecordingLengthSeconds = formatSeconds(recordingLengthSeconds);
+    return _jsx("span", { children: formattedRecordingLengthSeconds });
+}

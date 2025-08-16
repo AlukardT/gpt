@@ -1,0 +1,37 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node main-server.js",
+    "dev": "NODE_ENV=development nodemon --watch server --watch shared --watch main-server.js main-server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google-cloud/storage": "^7.16.0",
+    "pg": "^8.11.3",
+    "@uppy/aws-s3": "^4.3.2",
+    "@uppy/core": "^4.5.2",
+    "@uppy/dashboard": "^4.4.3",
+    "@uppy/drag-drop": "^4.2.2",
+    "@uppy/file-input": "^4.2.2",
+    "@uppy/progress-bar": "^4.3.2",
+    "@uppy/react": "^4.5.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "drizzle-kit": "^0.31.4",
+    "drizzle-orm": "^0.44.4",
+    "express": "^5.1.0",
+    "google-auth-library": "^10.2.1",
+    "node-fetch": "^2.7.0",
+    "telegraf": "^4.16.3",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

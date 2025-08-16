@@ -1,0 +1,45 @@
+{
+  "name": "@uppy/dropbox",
+  "description": "Import files from Dropbox, into Uppy.",
+  "version": "4.3.2",
+  "license": "MIT",
+  "main": "lib/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --build tsconfig.build.json",
+    "typecheck": "tsc --build"
+  },
+  "keywords": [
+    "file uploader",
+    "uppy",
+    "uppy-plugin",
+    "dropbox"
+  ],
+  "homepage": "https://uppy.io",
+  "bugs": {
+    "url": "https://github.com/transloadit/uppy/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/transloadit/uppy.git"
+  },
+  "files": [
+    "src",
+    "lib",
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "dependencies": {
+    "@uppy/companion-client": "^4.5.2",
+    "@uppy/provider-views": "^4.5.2",
+    "@uppy/utils": "^6.2.2",
+    "preact": "^10.5.13"
+  },
+  "peerDependencies": {
+    "@uppy/core": "^4.5.2"
+  },
+  "devDependencies": {
+    "@uppy/core": "^4.5.2",
+    "typescript": "^5.8.3"
+  }
+}

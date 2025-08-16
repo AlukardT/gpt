@@ -1,0 +1,7 @@
+import { jsx as _jsx, jsxs as _jsxs } from "preact/jsx-runtime";
+import { h } from 'preact';
+export default function PermissionsScreen({ icon, i18n, hasCamera, }) {
+    return (_jsxs("div", { className: "uppy-Webcam-permissons", children: [_jsx("div", { className: "uppy-Webcam-permissonsIcon", children: icon() }), _jsx("div", { className: "uppy-Webcam-title", children: hasCamera ? i18n('allowAccessTitle') : i18n('noCameraTitle') }), _jsx("p", { children: hasCamera
+                    ? i18n('allowAccessDescription')
+                    : i18n('noCameraDescription') })] }));
+}

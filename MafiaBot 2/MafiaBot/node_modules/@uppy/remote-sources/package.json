@@ -1,0 +1,64 @@
+{
+  "name": "@uppy/remote-sources",
+  "description": "Uppy plugin that includes all remote sources that Uppy+Companion offer, like Instagram, Google Drive, Dropox, Box, Unsplash, Url etc",
+  "version": "2.4.2",
+  "license": "MIT",
+  "main": "lib/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --build tsconfig.build.json",
+    "typecheck": "tsc --build",
+    "test": "vitest run --environment=jsdom --silent='passed-only'"
+  },
+  "keywords": [
+    "file uploader",
+    "instagram",
+    "google-drive",
+    "facebook",
+    "dropbox",
+    "onedrive",
+    "zoom",
+    "unsplash",
+    "box",
+    "url"
+  ],
+  "homepage": "https://uppy.io",
+  "bugs": {
+    "url": "https://github.com/transloadit/uppy/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/transloadit/uppy.git"
+  },
+  "files": [
+    "src",
+    "lib",
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "dependencies": {
+    "@uppy/box": "^3.3.2",
+    "@uppy/dashboard": "^4.4.2",
+    "@uppy/dropbox": "^4.3.2",
+    "@uppy/facebook": "^4.3.2",
+    "@uppy/google-drive": "^4.4.2",
+    "@uppy/instagram": "^4.3.2",
+    "@uppy/onedrive": "^4.3.2",
+    "@uppy/unsplash": "^4.4.2",
+    "@uppy/url": "^4.3.2",
+    "@uppy/zoom": "^3.3.2"
+  },
+  "peerDependencies": {
+    "@uppy/core": "^4.5.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@uppy/core": "^4.5.2",
+    "jsdom": "^26.1.0",
+    "resize-observer-polyfill": "^1.5.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
