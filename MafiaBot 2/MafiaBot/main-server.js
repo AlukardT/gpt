@@ -475,6 +475,19 @@ if (BOT_TOKEN) {
     }
   }
 
+  // /afisha — команда для открытия списка афиш
+  bot.command('afisha', async (ctx) => {
+    try {
+      const list = await fetchEventsList();
+      ctx.session.events = { list, index: 0 };
+      if (!list.length) return ctx.reply('Событий пока нет');
+      await renderEventCard(ctx, 0);
+    } catch (e) {
+      console.error('afisha command error:', e);
+      ctx.reply('Ошибка загрузки афиш');
+    }
+  });
+
   bot.action('show_events', async (ctx) => {
     try {
       await ctx.answerCbQuery().catch(() => {});
@@ -596,8 +609,7 @@ if (BOT_TOKEN) {
       // Команды для меню Telegram
       await bot.telegram.setMyCommands([
         { command: 'start', description: 'Запуск и меню' },
-        { command: 'register', description: 'Регистрация' },
-        { command: 'help', description: 'Справка' }
+        { command: 'afisha', description: 'Афиши' }
       ]).catch((e) => console.warn('⚠️ setMyCommands failed:', e.message));
 
       // Логирование ошибок и входящих сообщений
