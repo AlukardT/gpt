@@ -189,7 +189,7 @@ if (BOT_TOKEN) {
 
     const kb = Markup.inlineKeyboard([
       [Markup.button.callback('👤 Мой профиль', 'show_profile')],
-      [Markup.button.callback('📝 Записаться на игру', 'show_events')]
+      [Markup.button.callback('🎭 Афиши', 'show_events')]
     ]);
 
     const img = process.env.WELCOME_IMAGE_URL;
@@ -207,7 +207,56 @@ if (BOT_TOKEN) {
   });
 
   bot.command('register', (ctx) => ctx.scene.enter('registration'));
-  bot.command('help', (ctx) => ctx.reply('Доступные команды:\n/start — меню\n/register — регистрация'));
+  bot.command('help', (ctx) => ctx.reply('Доступные команды:\n/start — меню\n/register — регистрация\n/create_event — создать событие (только админ)'));
+
+  // Команда создания события (только админ)
+  bot.command('create_event', async (ctx) => {
+    try {
+      const adminId = String(process.env.ADMIN_TELEGRAM_ID || '');
+      const fromId = String(ctx.from?.id || '');
+      if (!adminId || fromId !== adminId) {
+        return ctx.reply('Команда доступна только администратору.');
+      }
+      const lines = (ctx.message?.text || '').split('\n').slice(1).map(s => s.trim()).filter(Boolean);
+      // Ожидаем 5 строк: title, location, address, date, time
+      if (lines.length < 5) {
+        return ctx.reply('Формат:\n/create_event\nНазвание\nЛокация\nАдрес\nYYYY-MM-DD\nHH:MM');
+      }
+      let [title, location, address, dateStr, timeStr] = lines;
+      // Убираем возможные префиксы
+      const stripPref = (s) => s.replace(/^\s*(Локация:|Адрес:|Дата:|Время:)\s*/i, '').trim();
+      location = stripPref(location);
+      address = stripPref(address);
+      dateStr = stripPref(dateStr);
+      timeStr = stripPref(timeStr);
+
+      // Валидируем дату и время
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return ctx.reply('Дата должна быть в формате YYYY-MM-DD');
+      }
+      if (!/^\d{2}:\d{2}$/.test(timeStr)) {
+        return ctx.reply('Время должно быть в формате HH:MM');
+      }
+      const dateIso = `${dateStr}T${timeStr}:00.000Z`;
+
+      const resp = await fetch(`${BASE_URL}/api/events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${ADMIN_TOKEN_VALUE}`
+        },
+        body: JSON.stringify({ title, location, address, dateIso, capacity: 12 })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) {
+        return ctx.reply('❌ Ошибка создания события');
+      }
+      return ctx.reply(`✅ Событие создано (#${data.id})\n${title}\n${dateStr} ${timeStr}\n${location}`);
+    } catch (e) {
+      console.error('create_event error:', e);
+      return ctx.reply('❌ Ошибка обработки команды');
+    }
+  });
 
   // Убираем кнопку/экшен регистрации из инлайн-меню — регистрация только командой
   // bot.action('go_register', (ctx) => ctx.scene.enter('registration'));
