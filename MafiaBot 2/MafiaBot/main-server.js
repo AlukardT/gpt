@@ -673,14 +673,64 @@ app.get('/api/roles/:role/image', (req, res) => {
   return res.json({ ok: true, role: key, url });
 });
 
-app.post('/api/bot/test', async (req, res) => {
-  if (!bot) return res.status(400).json({ ok: false, error: 'BOT_TOKEN not set' });
-  const adminId = process.env.ADMIN_TELEGRAM_ID;
-  if (!adminId) return res.status(400).json({ ok: false, error: 'ADMIN_TELEGRAM_ID not set' });
+// Отправить роли игрокам в Telegram
+const ROLE_TITLES_RU = {
+  don: 'Дон',
+  consigliere: 'Консильери',
+  mafia: 'Мафия',
+  sheriff: 'Комиссар',
+  doctor: 'Доктор',
+  lover: 'Любовница',
+  maniac: 'Маньяк',
+  kamikaze: 'Камикадзе',
+  bomber: 'Подрывник',
+  jailer: 'Тюремщик',
+  wolf: 'Оборотень',
+  civilian: 'Мирный житель'
+};
+
+app.post('/api/send-roles', async (req, res) => {
   try {
-    await bot.telegram.sendMessage(adminId, '✅ Bot test message from server');
-    return res.json({ ok: true });
+    if (!bot) return res.status(400).json({ ok: false, error: 'BOT_TOKEN not set' });
+    const players = Array.isArray(req.body?.players) ? req.body.players : [];
+    const gameTitle = req.body?.gameTitle || 'Игра Мафии';
+    if (!players.length) return res.json({ ok: true, sent: 0, errors: 0 });
+
+    let sent = 0;
+    let errors = 0;
+    for (const p of players) {
+      const chatId = p.telegramId || p.id;
+      const roleKey = String(p.role || '').toLowerCase();
+      if (!chatId || !roleKey) { errors++; continue; }
+
+      const roleTitle = ROLE_TITLES_RU[roleKey] || roleKey;
+      const caption = `🎭 ${gameTitle}\n\nВаша роль: <b>${roleTitle}</b>`;
+      const url = getRoleImage(roleKey);
+      const filePath = getRoleImagePath(roleKey);
+      try {
+        if (url) {
+          await bot.telegram.sendPhoto(chatId, url, { caption, parse_mode: 'HTML' });
+        } else if (filePath) {
+          await bot.telegram.sendPhoto(chatId, Input.fromLocalFile(filePath), { caption, parse_mode: 'HTML' });
+        } else {
+          await bot.telegram.sendMessage(chatId, caption, { parse_mode: 'HTML' });
+        }
+        sent++;
+      } catch (e) {
+        // Попробуем текстом, если фото не прошло
+        try {
+          await bot.telegram.sendMessage(chatId, caption, { parse_mode: 'HTML' });
+          sent++;
+        } catch (e2) {
+          console.warn('Role DM failed for', chatId, e2.message || e2);
+          errors++;
+        }
+      }
+    }
+
+    return res.json({ ok: true, sent, errors });
   } catch (e) {
+    console.error('send-roles error:', e);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
