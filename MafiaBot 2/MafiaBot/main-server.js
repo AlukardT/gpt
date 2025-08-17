@@ -200,7 +200,7 @@ if (BOT_TOKEN) {
       [Markup.button.callback('🎭 Афиши', 'show_events')]
     ]);
 
-    const img = process.env.WELCOME_IMAGE_URL || publicUrl('/assets/welcome.jpg');
+    const img = process.env.WELCOME_IMAGE_URL || publicUrl('/assets/Welcome.JPG') || publicUrl('/assets/welcome.jpg');
     if (img) {
       try {
         await ctx.replyWithPhoto(img, { caption: welcomeText });
@@ -309,7 +309,7 @@ if (BOT_TOKEN) {
       if (events.length === 0) return ctx.reply('Событий пока нет');
       const e = events[0];
       const caption = `Ближайшее событие:\n${e.title}\n${e.date} ${e.time}\n${e.location}`;
-      const poster = process.env.EVENT_POSTER_URL || publicUrl('/assets/posters/default.jpg');
+      const poster = process.env.EVENT_POSTER_URL || publicUrl('/assets/Event.PNG') || publicUrl('/assets/posters/default.jpg');
       try {
         await ctx.replyWithPhoto(poster, { caption });
       } catch {
