@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const { Telegraf, Markup, Scenes, session } = require('telegraf');
+const { Telegraf, Markup, Scenes, session, Input } = require('telegraf');
 const { app: apiApp, setupWebSocket } = require('./server/api.js');
 require('dotenv').config();
 
@@ -13,20 +13,37 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || null; // e.g. https://mafia-bot-web.onrender.com
 
 function publicUrl(p) {
-  const domain = PUBLIC_BASE_URL || process.env.TELEGRAM_WEBHOOK_DOMAIN;
-  if (domain) return `https://${domain}${p}`.replace('https://https://', 'https://');
+  const base =
+    process.env.PUBLIC_BASE_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    (process.env.TELEGRAM_WEBHOOK_DOMAIN ? `https://${process.env.TELEGRAM_WEBHOOK_DOMAIN}` : null);
+  if (base) return `${base}${p}`;
   return `http://localhost:${PORT}${p}`;
 }
 
+function assetUrl(filename) {
+  return publicUrl('/assets/' + encodeURIComponent(filename));
+}
+
+function assetPath(filename) {
+  return path.join(__dirname, 'assets', filename);
+}
+
 // Картинки ролей (ключи как в игре: lover, maniac, kamikaze, ...)
-const ROLE_IMAGES = {
-  lover: publicUrl('/assets/:role_lubovnitsa.PNG'),
-  maniac: publicUrl('/assets/:role_manyak.PNG'),
-  kamikaze: publicUrl('/assets/:role_Kamikadze.PNG')
+const ROLE_IMAGE_NAMES = {
+  lover: ':role_lubovnitsa.PNG',
+  maniac: ':role_manyak.PNG',
+  kamikaze: ':role_Kamikadze.PNG'
 };
 
 function getRoleImage(roleKey) {
-  return ROLE_IMAGES[roleKey] || null;
+  const name = ROLE_IMAGE_NAMES[roleKey];
+  return name ? assetUrl(name) : null;
+}
+
+function getRoleImagePath(roleKey) {
+  const name = ROLE_IMAGE_NAMES[roleKey];
+  return name ? assetPath(name) : null;
 }
 
 // ====== WIZARD: Регистрация ======
@@ -211,14 +228,19 @@ if (BOT_TOKEN) {
       [Markup.button.callback('🎭 Афиши', 'show_events')]
     ]);
 
-    const img = process.env.WELCOME_IMAGE_URL || publicUrl('/assets/Welcome.JPG') || publicUrl('/assets/welcome.jpg');
+    const img = process.env.WELCOME_IMAGE_URL || assetUrl('Welcome.JPG') || assetUrl('welcome.jpg');
     if (img) {
       try {
         await ctx.replyWithPhoto(img, { caption: welcomeText });
         return ctx.reply('Выберите действие:', kb);
       } catch {
-        // Fallback на текст
-        return ctx.reply(welcomeText, kb);
+        try {
+          await ctx.replyWithPhoto(Input.fromLocalFile(assetPath('Welcome.JPG')), { caption: welcomeText });
+          return ctx.reply('Выберите действие:', kb);
+        } catch {
+          // Fallback на текст
+          return ctx.reply(welcomeText, kb);
+        }
       }
     } else {
       return ctx.reply(welcomeText, kb);
@@ -238,8 +260,15 @@ if (BOT_TOKEN) {
     try {
       await ctx.replyWithPhoto(url, { caption: `Роль: ${key}` });
     } catch (e) {
-      console.error('role_test error:', e);
-      ctx.reply('Не удалось отправить изображение. Проверьте доступность файла.');
+      console.warn('role_test URL failed, falling back to local file:', e.message);
+      try {
+        const filePath = getRoleImagePath(key);
+        if (!filePath) return ctx.reply('Локальный файл изображения не найден.');
+        await ctx.replyWithPhoto(Input.fromLocalFile(filePath), { caption: `Роль: ${key}` });
+      } catch (e2) {
+        console.error('role_test local fallback error:', e2);
+        ctx.reply('Не удалось отправить изображение. Проверьте доступность файла.');
+      }
     }
   });
 
@@ -335,11 +364,15 @@ if (BOT_TOKEN) {
       if (events.length === 0) return ctx.reply('Событий пока нет');
       const e = events[0];
       const caption = `Ближайшее событие:\n${e.title}\n${e.date} ${e.time}\n${e.location}`;
-      const poster = process.env.EVENT_POSTER_URL || publicUrl('/assets/Event.PNG') || publicUrl('/assets/posters/default.jpg');
+      const poster = process.env.EVENT_POSTER_URL || assetUrl('Event.PNG') || assetUrl('posters/default.jpg');
       try {
         await ctx.replyWithPhoto(poster, { caption });
       } catch {
-        await ctx.reply(caption);
+        try {
+          await ctx.replyWithPhoto(Input.fromLocalFile(assetPath('Event.PNG')), { caption });
+        } catch {
+          await ctx.reply(caption);
+        }
       }
     } catch (e) {
       console.error('show_events error:', e);
