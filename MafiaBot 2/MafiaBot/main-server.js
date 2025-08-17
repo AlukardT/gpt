@@ -90,7 +90,7 @@ const registrationWizard = new Scenes.WizardScene(
     try {
       const photo = photos[photos.length - 1];
       const fileId = photo.file_id;
-      const fileLink = await ctx.telegram.getFileLink(fileId);
+      // Сохраняем именно file_id, чтобы не истекал (URL Telegram краткоживущий)
 
       const userId = ctx.from.id;
       const username = ctx.from.username || null;
@@ -110,7 +110,7 @@ const registrationWizard = new Scenes.WizardScene(
           lastName,
           nickname: ctx.wizard.state.nickname,
           realName: ctx.wizard.state.realName,
-          avatarUrl: fileLink.href
+          avatarUrl: `file_id:${fileId}`
         })
       });
 
@@ -122,8 +122,8 @@ const registrationWizard = new Scenes.WizardScene(
         ]);
         await ctx.reply(
           `🎉 Регистрация завершена!\n\n` +
-          `🏷️ Псевдоним: ${ctx.wizard.state.nickname}\n` +
-          `👤 Имя: ${ctx.wizard.state.realName}\n` +
+          `${ctx.wizard.state.nickname}\n` +
+          `${ctx.wizard.state.realName}\n` +
           `📸 Аватар загружен`,
           kb
         );
@@ -334,15 +334,17 @@ if (BOT_TOKEN) {
       const data = await resp.json();
       const p = data.profile || (data.ok && data.profile);
       if (!p) return ctx.reply('Профиль не найден. Отправьте /register для регистрации.');
-      const caption = [
-        `👤 Псевдоним: ${p.nickname || p.username || '—'}`,
-        `🎮 Игр сыграно: ${p.gamesPlayed ?? 0}`
-      ].join('\n');
+      const caption = `${p.nickname || p.username || '—'}`;
 
       let sent = false;
       if (p.avatarUrl) {
         try {
-          await ctx.replyWithPhoto(p.avatarUrl, { caption });
+          if (String(p.avatarUrl).startsWith('file_id:')) {
+            const fid = String(p.avatarUrl).slice('file_id:'.length);
+            await ctx.replyWithPhoto(fid, { caption });
+          } else {
+            await ctx.replyWithPhoto(p.avatarUrl, { caption });
+          }
           sent = true;
         } catch (e) {
           console.warn('Avatar send failed, try Telegram photo:', e.message);
