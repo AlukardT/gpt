@@ -173,18 +173,44 @@ if (BOT_TOKEN) {
       }).catch(() => {});
     } catch {}
 
+    const welcomeText = `🍷 Добро пожаловать в клуб "Наша мафия" 🎭\n\n` +
+      `Здесь мы собираемся, чтобы весело провести время за любимой игрой, вкусной едой и в компании приятных людей.\n\n` +
+      `📅 Как всё устроено:\n` +
+      `1️⃣ Запишись на ближайшую игру.\n` +
+      `2️⃣ Приходи в уютное место, где тебя ждёт атмосфера тепла и дружбы.\n` +
+      `3️⃣ Получи свою роль и погрузись в увлекательный сюжет.\n` +
+      `4️⃣ Наслаждайся смехом, эмоциями и неожиданными поворотами партии.\n\n` +
+      `✨ Почему тебе понравится:\n` +
+      ` • Дружелюбная компания и новые знакомства.\n` +
+      ` • Красивое место с вкусной кухней.\n` +
+      ` • Лёгкая, ненапряжная атмосфера.\n` +
+      ` • Яркие впечатления, которые запомнятся.\n\n` +
+      `💌 Жми кнопку "Записаться на игру" и бронируй своё место за столом!`;
+
     const kb = Markup.inlineKeyboard([
-      [Markup.button.callback('📝 Регистрация', 'go_register')],
       [Markup.button.callback('👤 Мой профиль', 'show_profile')],
-      [Markup.button.callback('🎭 События', 'show_events')]
+      [Markup.button.callback('📝 Записаться на игру', 'show_events')]
     ]);
-    return ctx.reply('Привет! Я бот клуба Мафии. Выберите действие:', kb);
+
+    const img = process.env.WELCOME_IMAGE_URL;
+    if (img) {
+      try {
+        await ctx.replyWithPhoto(img, { caption: welcomeText });
+        return ctx.reply('Выберите действие:', kb);
+      } catch {
+        // Fallback на текст
+        return ctx.reply(welcomeText, kb);
+      }
+    } else {
+      return ctx.reply(welcomeText, kb);
+    }
   });
 
   bot.command('register', (ctx) => ctx.scene.enter('registration'));
   bot.command('help', (ctx) => ctx.reply('Доступные команды:\n/start — меню\n/register — регистрация'));
 
-  bot.action('go_register', (ctx) => ctx.scene.enter('registration'));
+  // Убираем кнопку/экшен регистрации из инлайн-меню — регистрация только командой
+  // bot.action('go_register', (ctx) => ctx.scene.enter('registration'));
 
   bot.action('show_profile', async (ctx) => {
     try {
@@ -192,16 +218,23 @@ if (BOT_TOKEN) {
       const resp = await fetch(`${BASE_URL}/api/players/${userId}`, {
         headers: { 'Authorization': `Bearer ${BOT_INTERNAL_TOKEN}` }
       });
-      if (!resp.ok) return ctx.reply('Профиль не найден. Пройдите регистрацию.');
+      if (!resp.ok) return ctx.reply('Профиль не найден. Отправьте /register для регистрации.');
       const data = await resp.json();
       const p = data.profile || (data.ok && data.profile);
-      if (!p) return ctx.reply('Профиль не найден.');
-      const lines = [
+      if (!p) return ctx.reply('Профиль не найден. Отправьте /register для регистрации.');
+      const caption = [
         `👤 Псевдоним: ${p.nickname || '—'}`,
-        `Имя: ${p.realName || '—'}`,
-        `Telegram: @${ctx.from.username || '—'}`
+        `🎮 Игр сыграно: ${p.gamesPlayed ?? 0}`
       ].join('\n');
-      await ctx.reply(lines);
+      if (p.avatarUrl) {
+        try {
+          await ctx.replyWithPhoto(p.avatarUrl, { caption });
+          return;
+        } catch (e) {
+          console.warn('Avatar send failed, fallback to text:', e.message);
+        }
+      }
+      await ctx.reply(caption);
     } catch (e) {
       console.error('show_profile error:', e);
       ctx.reply('Ошибка загрузки профиля');
