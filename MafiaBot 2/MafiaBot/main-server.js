@@ -245,8 +245,8 @@ if (BOT_TOKEN) {
         // Webhook mode
         const hookPath = `/telegraf/${webhookSecret}`;
         const hookUrl = `https://${webhookDomain}${hookPath}`;
-        await bot.telegram.setWebhook(hookUrl, { drop_pending_updates: true });
-        app.use(hookPath, express.json(), (req, res) => bot.webhookCallback(hookPath)(req, res));
+        await bot.telegram.setWebhook(hookUrl, { secret_token: webhookSecret, drop_pending_updates: true });
+        app.use(hookPath, express.json(), (req, res) => bot.webhookCallback(hookPath, { secretToken: webhookSecret })(req, res));
         console.log(`🪝 Bot webhook set to ${hookUrl}`);
       } else {
         // Long polling mode
