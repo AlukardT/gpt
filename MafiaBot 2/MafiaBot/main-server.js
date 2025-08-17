@@ -335,56 +335,207 @@ if (BOT_TOKEN) {
       const p = data.profile || (data.ok && data.profile);
       if (!p) return ctx.reply('Профиль не найден. Отправьте /register для регистрации.');
       const caption = [
-        `👤 Псевдоним: ${p.nickname || '—'}`,
+        `👤 Псевдоним: ${p.nickname || p.username || '—'}`,
         `🎮 Игр сыграно: ${p.gamesPlayed ?? 0}`
       ].join('\n');
+
+      let sent = false;
       if (p.avatarUrl) {
         try {
           await ctx.replyWithPhoto(p.avatarUrl, { caption });
-          return;
+          sent = true;
         } catch (e) {
-          console.warn('Avatar send failed, fallback to text:', e.message);
+          console.warn('Avatar send failed, try Telegram photo:', e.message);
         }
       }
-      await ctx.reply(caption);
+
+      if (!sent) {
+        try {
+          const photos = await ctx.telegram.getUserProfilePhotos(userId, 0, 1);
+          if (photos?.total_count > 0) {
+            const sizes = photos.photos[0];
+            const best = sizes[sizes.length - 1];
+            const link = await ctx.telegram.getFileLink(best.file_id);
+            await ctx.replyWithPhoto(link.href, { caption });
+            sent = true;
+          }
+        } catch (e) {
+          console.warn('Telegram profile photo not available:', e.message);
+        }
+      }
+
+      if (!sent) {
+        await ctx.reply(caption);
+      }
     } catch (e) {
       console.error('show_profile error:', e);
       ctx.reply('Ошибка загрузки профиля');
     }
   });
 
+  // ===== Helpers for Events UI =====
+  async function fetchEventsList() {
+    const resp = await fetch(`${BASE_URL}/api/events`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_TOKEN_VALUE}` }
+    });
+    if (!resp.ok) throw new Error('events fetch failed');
+    const data = await resp.json();
+    return data.events || [];
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function buildEventCaption(e) {
+    return (
+      `${e.title || ''}\n\n` +
+      `Локация: ${e.location || '—'}\n` +
+      `Адрес: ${e.address || '—'}\n` +
+      `Дата: ${e.date || '—'}\n` +
+      `Время: ${e.time || '—'}`
+    );
+  }
+
+  async function getRegistrationsCount(eventId) {
+    const resp = await fetch(`${BASE_URL}/api/events/${eventId}/registrations`, {
+      headers: { 'Authorization': `Bearer ${ADMIN_TOKEN_VALUE}` }
+    });
+    if (!resp.ok) return { total: 0, regs: [] };
+    const data = await resp.json();
+    const regs = data.registrations || [];
+    const total = regs.reduce((sum, r) => sum + (r.playerCount || 1), 0);
+    return { total, regs };
+  }
+
+  function buildEventsKeyboard(e, count) {
+    return Markup.inlineKeyboard([
+      [Markup.button.callback('🎟 Записаться на игру', `event_register:${e.id}`)],
+      [Markup.button.callback(`👥 Игроки ${count}/${e.capacity}`, `event_players:${e.id}`)],
+      [
+        Markup.button.callback('⬅️ Назад', 'back_to_menu'),
+        Markup.button.callback('➡️ Дальше', 'event_next')
+      ]
+    ]);
+  }
+
+  async function renderEventCard(ctx, index) {
+    const evState = ctx.session.events || { list: [], index: 0 };
+    const list = evState.list || [];
+    if (!list.length) return ctx.reply('Событий пока нет');
+    const i = ((index % list.length) + list.length) % list.length; // safe modulo
+    evState.index = i;
+    ctx.session.events = evState;
+    const e = list[i];
+    const { total } = await getRegistrationsCount(e.id);
+    const caption = buildEventCaption(e);
+    const poster = process.env.EVENT_POSTER_URL || assetUrl('Event.PNG') || assetUrl('posters/default.jpg');
+    const kb = buildEventsKeyboard(e, total);
+    try {
+      await ctx.replyWithPhoto(poster, { caption, ...kb });
+    } catch {
+      try {
+        await ctx.replyWithPhoto(Input.fromLocalFile(assetPath('Event.PNG')), { caption, ...kb });
+      } catch {
+        await ctx.reply(caption, kb);
+      }
+    }
+  }
+
   bot.action('show_events', async (ctx) => {
     try {
-      const resp = await fetch(`${BASE_URL}/api/events`, {
-        headers: { 'Authorization': `Bearer ${ADMIN_TOKEN_VALUE}` }
-      });
-      if (!resp.ok) return ctx.reply('Не удалось получить события');
-      const data = await resp.json();
-      const events = data.events || [];
-      if (events.length === 0) return ctx.reply('Событий пока нет');
-      const e = events[0];
-      const caption = `Ближайшее событие:\n${e.title}\n${e.date} ${e.time}\n${e.location}`;
-      const poster = process.env.EVENT_POSTER_URL || assetUrl('Event.PNG') || assetUrl('posters/default.jpg');
-      try {
-        await ctx.replyWithPhoto(poster, { caption });
-      } catch {
-        try {
-          await ctx.replyWithPhoto(Input.fromLocalFile(assetPath('Event.PNG')), { caption });
-        } catch {
-          await ctx.reply(caption);
-        }
-      }
+      await ctx.answerCbQuery().catch(() => {});
+      const list = await fetchEventsList();
+      ctx.session.events = { list, index: 0 };
+      if (!list.length) return ctx.reply('Событий пока нет');
+      await renderEventCard(ctx, 0);
     } catch (e) {
       console.error('show_events error:', e);
       ctx.reply('Ошибка загрузки событий');
     }
   });
 
+  bot.action('event_next', async (ctx) => {
+    try {
+      await ctx.answerCbQuery().catch(() => {});
+      const evState = ctx.session.events || { list: [], index: 0 };
+      if (!evState.list.length) return ctx.reply('Событий пока нет');
+      await renderEventCard(ctx, (evState.index || 0) + 1);
+    } catch (e) {
+      console.error('event_next error:', e);
+      ctx.reply('Ошибка переключения события');
+    }
+  });
+
+  bot.action(/^event_register:(\d+)$/, async (ctx) => {
+    try {
+      await ctx.answerCbQuery().catch(() => {});
+      const eventId = Number(ctx.match[1]);
+      const body = { userId: ctx.from.id, username: ctx.from.username || null, playerCount: 1 };
+      const resp = await fetch(`${BASE_URL}/api/events/${eventId}/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${BOT_INTERNAL_TOKEN}`
+        },
+        body: JSON.stringify(body)
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) return ctx.reply('❌ Не удалось записаться на игру');
+      const evState = ctx.session.events || { list: [], index: 0 };
+      const e = evState.list.find(x => x.id === eventId);
+      const capacity = e?.capacity || 20;
+      await ctx.reply(`✅ Вы записаны. Участников: ${data.count}/${capacity}`);
+    } catch (e) {
+      console.error('event_register error:', e);
+      ctx.reply('Ошибка записи на событие');
+    }
+  });
+
+  bot.action(/^event_players:(\d+)$/, async (ctx) => {
+    try {
+      await ctx.answerCbQuery().catch(() => {});
+      const eventId = Number(ctx.match[1]);
+      const regsResp = await fetch(`${BASE_URL}/api/events/${eventId}/registrations`, {
+        headers: { 'Authorization': `Bearer ${ADMIN_TOKEN_VALUE}` }
+      });
+      if (!regsResp.ok) return ctx.reply('Не удалось получить список игроков');
+      const regsData = await regsResp.json();
+      const regs = regsData.registrations || [];
+      if (regs.length === 0) return ctx.reply('Пока никто не записался');
+
+      const userIds = regs.map(r => String(r.userId));
+      const profResp = await fetch(`${BASE_URL}/api/players/profiles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${BOT_INTERNAL_TOKEN}`
+        },
+        body: JSON.stringify({ userIds })
+      });
+      const profData = await profResp.json().catch(() => ({}));
+      const profiles = profData.profiles || profData.players || [];
+      const byId = Object.fromEntries(profiles.map(p => [String(p.id), p]));
+
+      const lines = regs.map(r => {
+        const p = byId[String(r.userId)] || {};
+        const nick = p.nickname || p.username || 'Игрок';
+        const real = p.realName || [p.firstName, p.lastName].filter(Boolean).join(' ') || '';
+        const name = real ? `${nick} (${real})` : nick;
+        const href = p.username ? `https://t.me/${p.username}` : `tg://user?id=${r.userId}`;
+        return `• <a href="${escapeHtml(href)}">${escapeHtml(name)}</a>`;
+      });
+      await ctx.reply(`<b>Игроки события:</b>\n${lines.join('\n')}`, { parse_mode: 'HTML' });
+    } catch (e) {
+      console.error('event_players error:', e);
+      ctx.reply('Ошибка получения списка игроков');
+    }
+  });
+
   bot.action('back_to_menu', async (ctx) => {
     return ctx.reply('Главное меню', Markup.inlineKeyboard([
-      [Markup.button.callback('📝 Регистрация', 'go_register')],
       [Markup.button.callback('👤 Мой профиль', 'show_profile')],
-      [Markup.button.callback('🎭 События', 'show_events')]
+      [Markup.button.callback('🎭 Афиши', 'show_events')]
     ]));
   });
 

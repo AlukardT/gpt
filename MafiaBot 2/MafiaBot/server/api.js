@@ -284,6 +284,39 @@ app.get('/api/events/:id/registrations', publicAuth, async (req, res) => {
   }
 });
 
+// Зарегистрировать пользователя на событие (бот)
+app.post('/api/events/:id/register', botAuth, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { userId, username, playerCount } = req.body || {};
+    if (!eventId || !userId) return bad(res, 400, 'eventId and userId required');
+
+    const regsForEvent = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, eventId));
+    const existing = regsForEvent.find(r => String(r.userId) === String(userId));
+    const count = Math.max(1, parseInt(playerCount || 1));
+
+    if (existing) {
+      await db.update(eventRegistrations)
+        .set({ playerCount: count, username: username || existing.username || null })
+        .where(eq(eventRegistrations.id, existing.id));
+    } else {
+      await db.insert(eventRegistrations).values({
+        eventId,
+        userId: String(userId),
+        username: username || null,
+        playerCount: count
+      });
+    }
+
+    const updated = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, eventId));
+    const total = updated.reduce((sum, r) => sum + (r.playerCount || 1), 0);
+    return ok(res, { registered: true, count: total });
+  } catch (error) {
+    console.error('Error registering for event:', error);
+    return bad(res, 500, 'Database error');
+  }
+});
+
 // ── GAMES API ──
 app.post('/api/games', adminAuth, async (req, res) => {
   try {
