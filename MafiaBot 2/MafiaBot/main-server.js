@@ -10,6 +10,13 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 const ADMIN_TOKEN_VALUE = process.env.ADMIN_TOKEN || 'admin-secret';
 const BOT_INTERNAL_TOKEN = process.env.BOT_TOKEN_INTERNAL || 'bot-secret';
 const BOT_TOKEN = process.env.BOT_TOKEN;
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || null; // e.g. https://mafia-bot-web.onrender.com
+
+function publicUrl(p) {
+  const domain = PUBLIC_BASE_URL || process.env.TELEGRAM_WEBHOOK_DOMAIN;
+  if (domain) return `https://${domain}${p}`.replace('https://https://', 'https://');
+  return `http://localhost:${PORT}${p}`;
+}
 
 // ====== WIZARD: Регистрация ======
 const registrationWizard = new Scenes.WizardScene(
@@ -118,6 +125,7 @@ console.log('👑 Admin ID value:', process.env.ADMIN_TELEGRAM_ID);
 
 // Статика и главная
 app.use('/balagan', express.static(path.join(__dirname, 'mafia-balagan')));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -192,7 +200,7 @@ if (BOT_TOKEN) {
       [Markup.button.callback('🎭 Афиши', 'show_events')]
     ]);
 
-    const img = process.env.WELCOME_IMAGE_URL;
+    const img = process.env.WELCOME_IMAGE_URL || publicUrl('/assets/welcome.jpg');
     if (img) {
       try {
         await ctx.replyWithPhoto(img, { caption: welcomeText });
@@ -300,7 +308,13 @@ if (BOT_TOKEN) {
       const events = data.events || [];
       if (events.length === 0) return ctx.reply('Событий пока нет');
       const e = events[0];
-      await ctx.reply(`Ближайшее событие:\n${e.title}\n${e.date} ${e.time}\n${e.location}`);
+      const caption = `Ближайшее событие:\n${e.title}\n${e.date} ${e.time}\n${e.location}`;
+      const poster = process.env.EVENT_POSTER_URL || publicUrl('/assets/posters/default.jpg');
+      try {
+        await ctx.replyWithPhoto(poster, { caption });
+      } catch {
+        await ctx.reply(caption);
+      }
     } catch (e) {
       console.error('show_events error:', e);
       ctx.reply('Ошибка загрузки событий');
