@@ -213,7 +213,7 @@ app.post('/api/events', adminAuth, async (req, res) => {
   }
 });
 
-app.get('/api/events', publicAuth, async (req, res) => {
+app.get('/api/events', async (req, res) => {
   try {
     // Order events by date then time
     const allEvents = await db
@@ -227,7 +227,7 @@ app.get('/api/events', publicAuth, async (req, res) => {
   }
 });
 
-app.get('/api/events/next', publicAuth, async (req, res) => {
+app.get('/api/events/next', async (req, res) => {
   try {
     // Determine current date and time strings
     const now = new Date();
@@ -287,7 +287,7 @@ app.post('/api/games/:id/save', publicAuth, async (req, res) => {
   }
 });
 
-app.get('/api/events/:id/registrations', publicAuth, async (req, res) => {
+app.get('/api/events/:id/registrations', async (req, res) => {
   try {
     const eventId = parseInt(req.params.id);
     const registrations = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, eventId));

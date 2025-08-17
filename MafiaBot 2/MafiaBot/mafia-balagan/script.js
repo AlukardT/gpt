@@ -277,20 +277,18 @@ async function loadUpcomingEvent() {
     try {
         console.log('🔄 Загружаем ближайшее событие...');
         
-        const response = await fetch('/api/events');
+        const response = await fetch('/api/events/next');
         if (!response.ok) {
-            throw new Error('Failed to fetch upcoming events');
+            throw new Error('Failed to fetch upcoming event');
         }
         
-        const data = await response.json();
-        const events = data.ok ? (data.events || []) : [];
-        
-        if (events.length === 0) {
+        const e = await response.json();
+        if (!e) {
             showNoEventMessage();
             return;
         }
         
-        currentUpcomingEvent = events[0];
+        currentUpcomingEvent = e;
         console.log('📅 Загружено событие:', currentUpcomingEvent);
         
         // Load registrations for this event
@@ -313,7 +311,8 @@ async function loadEventRegistrations(eventId) {
             throw new Error('Failed to fetch registrations');
         }
         
-        eventRegistrations = await response.json();
+        const json = await response.json();
+        eventRegistrations = (json && json.ok && Array.isArray(json.registrations)) ? json.registrations : [];
         console.log('👥 Загружены регистрации:', eventRegistrations);
         
     } catch (error) {
@@ -391,7 +390,7 @@ function displayUpcomingEvent() {
     } else {
         const registrationsHtml = eventRegistrations.map(reg => `
             <div class="registration-item">
-                <span class="player-name">@${reg.username || 'unknown'}</span>
+                <span class="player-name">${reg.username ? '@'+reg.username : 'Игрок'}</span>
                 <span class="player-count">${reg.playerCount} игр.</span>
             </div>
         `).join('');
