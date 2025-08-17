@@ -915,6 +915,11 @@ function updateGameInstructions() {
 
 // Night phase control functions
 function setActiveNightRole(role) {
+    // Запрещаем выбор целей в первую ночь — это только знакомство мафии
+    if (gameState.phase === 'firstNight') {
+        showToast('info', 'ℹ️', 'Первая ночь — только знакомство мафии');
+        return;
+    }
     gameState.currentNightRole = role;
     console.log(`🌙 Активная роль: ${role}`);
     updateCenterPanel();
@@ -929,6 +934,11 @@ function clearActiveNightRole() {
 }
 
 function confirmNightAction() {
+    if (gameState.phase === 'firstNight') {
+        // В первую ночь подтверждение действия не требуется — просто кнопка знакомства
+        mafiaIntroduced();
+        return;
+    }
     if (!selectedTargetId || !gameState.currentNightRole) {
         alert('Выберите цель для действия!');
         return;
@@ -2756,6 +2766,11 @@ function updatePlayerBadges(seatElement, player) {
 }
 
 function setActiveNightRole(roleType) {
+    // Единый интерфейс: применимо ко всем ролям, но не в первую ночь (знакомство)
+    if (gameState.phase === 'firstNight') {
+        showToast('info', 'ℹ️', 'Первая ночь — только знакомство мафии');
+        return;
+    }
     gameState.currentNightRole = roleType;
     updatePlayerTable();
     addLogEntry('Ночное действие', `Активная роль: ${roleDefinitions[roleType]?.name || roleType}`);
@@ -3145,6 +3160,16 @@ function showCurrentNightRole() {
     
     const currentRoleKey = gameState.nightRoleQueue[gameState.currentNightRoleIndex];
     const currentRole = nightRoles[currentRoleKey];
+    
+    // На первой ночи пропускаем действия мафии (только знакомство)
+    if (gameState.phase === 'firstNight' && (currentRoleKey === 'mafia' || currentRoleKey === 'don' || currentRoleKey === 'consigliere')) {
+        nextNightRole();
+        return;
+    }
+    if (!currentRole) {
+        nextNightRole();
+        return;
+    }
     
     // Проверяем что роль существует
     if (!currentRole) {
