@@ -6,6 +6,8 @@ require('dotenv').config();
 
 const PORT = process.env.PORT || 5000;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+const ADMIN_TOKEN_VALUE = process.env.ADMIN_TOKEN || 'admin-secret';
+const BOT_INTERNAL_TOKEN = process.env.BOT_TOKEN_INTERNAL || 'bot-secret';
 
 // Создаем wizard сцену для регистрации
 const registrationWizard = new Scenes.WizardScene(
@@ -131,6 +133,84 @@ if (BOT_TOKEN) {
     bot = new Telegraf(BOT_TOKEN);
     bot.use(session());
     bot.use(stage.middleware());
+
+    // Базовые обработчики, чтобы бот отвечал
+    bot.start(async (ctx) => {
+        try {
+            // Лёгкая базовая регистрация/обновление профиля
+            const userId = ctx.from.id;
+            const username = ctx.from.username;
+            const firstName = ctx.from.first_name || '';
+            const lastName = ctx.from.last_name || '';
+            await fetch(`${BASE_URL}/api/players/upsert`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${BOT_INTERNAL_TOKEN}`
+                },
+                body: JSON.stringify({ telegramId: userId, username, firstName, lastName })
+            }).catch(() => {});
+        } catch {}
+
+        const buttons = [[
+            Markup.button.callback('📝 Регистрация', 'go_register')
+        ], [
+            Markup.button.callback('👤 Мой профиль', 'show_profile')
+        ], [
+            Markup.button.callback('🎭 События', 'show_events')
+        ]];
+        return ctx.reply('Привет! Я бот клуба Мафии. Выберите действие:', Markup.inlineKeyboard(buttons));
+    });
+
+    bot.command('register', (ctx) => ctx.scene.enter('registration'));
+    bot.action('go_register', (ctx) => ctx.scene.enter('registration'));
+
+    bot.action('show_profile', async (ctx) => {
+        try {
+            const userId = ctx.from.id;
+            const resp = await fetch(`${BASE_URL}/api/players/${userId}`, {
+                headers: { 'Authorization': `Bearer ${BOT_INTERNAL_TOKEN}` }
+            });
+            if (!resp.ok) return ctx.reply('Профиль не найден. Пройдите регистрацию.');
+            const data = await resp.json();
+            const p = data.profile || data?.ok && data.profile;
+            if (!p) return ctx.reply('Профиль не найден.');
+            const lines = [
+                `👤 Псевдоним: ${p.nickname || '—'}`,
+                `Имя: ${p.realName || '—'}`,
+                `Telegram: @${ctx.from.username || '—'}`
+            ].join('\n');
+            await ctx.reply(lines);
+        } catch (e) {
+            console.error('show_profile error:', e);
+            ctx.reply('Ошибка загрузки профиля');
+        }
+    });
+
+    bot.action('show_events', async (ctx) => {
+        try {
+            const resp = await fetch(`${BASE_URL}/api/events`, {
+                headers: { 'Authorization': `Bearer ${ADMIN_TOKEN_VALUE}` }
+            });
+            if (!resp.ok) return ctx.reply('Не удалось получить события');
+            const data = await resp.json();
+            const events = data.events || [];
+            if (events.length === 0) return ctx.reply('Событий пока нет');
+            const e = events[0];
+            await ctx.reply(`Ближайшее событие:\n${e.title}\n${e.date} ${e.time}\n${e.location}`);
+        } catch (e) {
+            console.error('show_events error:', e);
+            ctx.reply('Ошибка загрузки событий');
+        }
+    });
+
+    bot.action('back_to_menu', async (ctx) => {
+        return ctx.reply('Главное меню', Markup.inlineKeyboard([
+            [Markup.button.callback('📝 Регистрация', 'go_register')],
+            [Markup.button.callback('👤 Мой профиль', 'show_profile')],
+            [Markup.button.callback('🎭 События', 'show_events')]
+        ]));
+    });
 } else {
     console.warn('⚠️ BOT_TOKEN is not set. Telegram bot is disabled.');
 }
