@@ -18,6 +18,17 @@ function publicUrl(p) {
   return `http://localhost:${PORT}${p}`;
 }
 
+// Картинки ролей (ключи как в игре: lover, maniac, kamikaze, ...)
+const ROLE_IMAGES = {
+  lover: publicUrl('/assets/:role_lubovnitsa.PNG'),
+  maniac: publicUrl('/assets/:role_manyak.PNG'),
+  kamikaze: publicUrl('/assets/:role_Kamikadze.PNG')
+};
+
+function getRoleImage(roleKey) {
+  return ROLE_IMAGES[roleKey] || null;
+}
+
 // ====== WIZARD: Регистрация ======
 const registrationWizard = new Scenes.WizardScene(
   'registration',
@@ -217,6 +228,21 @@ if (BOT_TOKEN) {
   bot.command('register', (ctx) => ctx.scene.enter('registration'));
   bot.command('help', (ctx) => ctx.reply('Доступные команды:\n/start — меню\n/register — регистрация\n/create_event — создать событие (только админ)'));
 
+  // Быстрый тест картинок ролей: /role_test <role>
+  bot.command('role_test', async (ctx) => {
+    const parts = (ctx.message?.text || '').trim().split(/\s+/);
+    const key = (parts[1] || '').toLowerCase();
+    if (!key) return ctx.reply('Использование: /role_test <lover|maniac|kamikaze>');
+    const url = getRoleImage(key);
+    if (!url) return ctx.reply(`Картинка для роли "${key}" не найдена.`);
+    try {
+      await ctx.replyWithPhoto(url, { caption: `Роль: ${key}` });
+    } catch (e) {
+      console.error('role_test error:', e);
+      ctx.reply('Не удалось отправить изображение. Проверьте доступность файла.');
+    }
+  });
+
   // Команда создания события (только админ)
   bot.command('create_event', async (ctx) => {
     try {
@@ -391,6 +417,14 @@ app.get('/api/bot/status', async (req, res) => {
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// Вернуть URL картинки роли для интеграции фронтенда
+app.get('/api/roles/:role/image', (req, res) => {
+  const key = String(req.params.role || '').toLowerCase();
+  const url = getRoleImage(key);
+  if (!url) return res.status(404).json({ ok: false, error: 'not found' });
+  return res.json({ ok: true, role: key, url });
 });
 
 app.post('/api/bot/test', async (req, res) => {
