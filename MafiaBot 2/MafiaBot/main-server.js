@@ -125,9 +125,15 @@ const registrationWizard = new Scenes.WizardScene(
 const stage = new Scenes.Stage([registrationWizard]);
 
 // Initialize bot with token from environment variables and middleware
-const bot = new Telegraf(process.env.BOT_TOKEN);
-bot.use(session());
-bot.use(stage.middleware());
+const BOT_TOKEN = process.env.BOT_TOKEN;
+let bot = null;
+if (BOT_TOKEN) {
+    bot = new Telegraf(BOT_TOKEN);
+    bot.use(session());
+    bot.use(stage.middleware());
+} else {
+    console.warn('⚠️ BOT_TOKEN is not set. Telegram bot is disabled.');
+}
 
 // Initialize Express app for web server  
 const app = express();
@@ -169,10 +175,13 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Запуск бота
-bot.launch()
-  .then(() => console.log('✅ Telegram bot connected successfully!'))
-  .catch(err => console.error('❌ Bot connection failed:', err));
+// Запуск бота (только если задан токен) — удаляем вебхук на всякий случай и используем long polling
+if (bot) {
+    bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
+    bot.launch({ dropPendingUpdates: true })
+      .then(() => console.log('✅ Telegram bot connected successfully!'))
+      .catch(err => console.error('❌ Bot connection failed:', err));
+}
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 Web server running on port ${PORT}`);
@@ -187,5 +196,7 @@ console.log('✅ API модуль подключен к основному се�
 // Настройка WebSocket
 setupWebSocket(server);
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+if (bot) {
+  process.once('SIGINT', () => bot.stop('SIGINT'));
+  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+}
