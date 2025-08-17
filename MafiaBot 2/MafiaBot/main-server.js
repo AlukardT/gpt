@@ -165,6 +165,8 @@ if (BOT_TOKEN) {
     bot.command('register', (ctx) => ctx.scene.enter('registration'));
     bot.action('go_register', (ctx) => ctx.scene.enter('registration'));
 
+    bot.command('help', (ctx) => ctx.reply('Доступные команды:\n/start — меню\n/register — регистрация'));
+
     bot.action('show_profile', async (ctx) => {
         try {
             const userId = ctx.from.id;
@@ -261,6 +263,13 @@ async function initBot() {
   try {
     console.log('🤖 Initializing Telegram bot...');
     await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
+
+    // Регистрируем команды для меню Telegram
+    await bot.telegram.setMyCommands([
+      { command: 'start', description: 'Запуск и меню' },
+      { command: 'register', description: 'Регистрация' },
+      { command: 'help', description: 'Справка' }
+    ]).catch((e) => console.warn('⚠️ setMyCommands failed:', e.message));
 
     // Логирование ошибок
     bot.catch((err, ctx) => {
