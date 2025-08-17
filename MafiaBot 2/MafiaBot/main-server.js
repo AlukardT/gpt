@@ -250,6 +250,37 @@ if (BOT_TOKEN) {
   bot.command('register', (ctx) => ctx.scene.enter('registration'));
   bot.command('help', (ctx) => ctx.reply('Доступные команды:\n/start — меню\n/register — регистрация\n/create_event — создать событие (только админ)'));
 
+  // Установка аватара повторно: /set_avatar затем прислать фото
+  bot.command('set_avatar', async (ctx) => {
+    await ctx.reply('Пришлите ваше фото для аватара (как фото, не как файл).');
+    ctx.session.awaitingAvatar = true;
+  });
+
+  bot.on('photo', async (ctx) => {
+    if (!ctx.session.awaitingAvatar) return; // игнорируем, если не ждем аватар
+    try {
+      const photos = ctx.message?.photo || [];
+      const best = photos[photos.length - 1];
+      if (!best) return ctx.reply('Не вижу фото. Пришлите именно фото.');
+      const fid = best.file_id;
+      const resp = await fetch(`${BASE_URL}/api/players/avatar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${BOT_INTERNAL_TOKEN}`
+        },
+        body: JSON.stringify({ telegramId: ctx.from.id, avatarUrl: `file_id:${fid}` })
+      });
+      if (!resp.ok) return ctx.reply('❌ Не удалось сохранить аватар. Попробуйте позже.');
+      await ctx.reply('✅ Аватар обновлён. Откройте «Мой профиль».');
+    } catch (e) {
+      console.error('set_avatar error:', e);
+      await ctx.reply('❌ Ошибка при обработке фото.');
+    } finally {
+      ctx.session.awaitingAvatar = false;
+    }
+  });
+
   // Быстрый тест картинок ролей: /role_test <role>
   bot.command('role_test', async (ctx) => {
     const parts = (ctx.message?.text || '').trim().split(/\s+/);

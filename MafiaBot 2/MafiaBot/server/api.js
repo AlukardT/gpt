@@ -159,6 +159,21 @@ app.get('/api/players', publicAuth, async (req, res) => {
   }
 });
 
+// Update only avatar URL for a player (bot authenticated)
+app.post('/api/players/avatar', botAuth, async (req, res) => {
+  try {
+    const { telegramId, avatarUrl } = req.body || {};
+    if (!telegramId || !avatarUrl) return bad(res, 400, 'telegramId and avatarUrl required');
+    await db.update(userProfiles)
+      .set({ avatarUrl, lastActive: new Date() })
+      .where(eq(userProfiles.id, String(telegramId)));
+    return ok(res, { updated: true });
+  } catch (error) {
+    console.error('Error updating avatar:', error);
+    return bad(res, 500, 'Database error');
+  }
+});
+
 // ── EVENTS API ──
 app.post('/api/events', adminAuth, async (req, res) => {
   try {
