@@ -262,7 +262,22 @@ async function initBot() {
   if (!bot) return;
   try {
     console.log('🤖 Initializing Telegram bot...');
-    await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
+
+    const webhookDomain = process.env.TELEGRAM_WEBHOOK_DOMAIN; // e.g. mafia-bot-web.onrender.com
+    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || 'telegraf-hook';
+
+    if (webhookDomain) {
+      // Webhook mode
+      const hookPath = `/telegraf/${webhookSecret}`;
+      const hookUrl = `https://${webhookDomain}${hookPath}`;
+      await bot.telegram.setWebhook(hookUrl, { drop_pending_updates: true });
+      app.use(hookPath, express.json(), (req, res) => bot.webhookCallback(hookPath)(req, res));
+      console.log(`🪝 Bot webhook set to ${hookUrl}`);
+    } else {
+      // Long polling mode
+      await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
+      await bot.launch({ dropPendingUpdates: true });
+    }
 
     // Регистрируем команды для меню Telegram
     await bot.telegram.setMyCommands([
@@ -282,7 +297,6 @@ async function initBot() {
       console.log(`📨 Message from ${from}:`, ctx.message?.text || ctx.updateType);
     });
 
-    await bot.launch({ dropPendingUpdates: true });
     const me = await bot.telegram.getMe();
     console.log(`✅ Telegram bot connected as @${me.username} (id=${me.id})`);
   } catch (err) {
@@ -307,7 +321,20 @@ app.get('/api/bot/status', async (req, res) => {
   if (!bot) return res.json({ ok: false, error: 'BOT_TOKEN not set' });
   try {
     const me = await bot.telegram.getMe();
-    return res.json({ ok: true, username: me.username, id: me.id });
+    const hookInfo = await bot.telegram.getWebhookInfo().catch(() => null);
+    return res.json({ ok: true, username: me.username, id: me.id, webhook: hookInfo });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post('/api/bot/test', async (req, res) => {
+  if (!bot) return res.status(400).json({ ok: false, error: 'BOT_TOKEN not set' });
+  const adminId = process.env.ADMIN_TELEGRAM_ID;
+  if (!adminId) return res.status(400).json({ ok: false, error: 'ADMIN_TELEGRAM_ID not set' });
+  try {
+    await bot.telegram.sendMessage(adminId, '✅ Bot test message from server');
+    return res.json({ ok: true });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });
   }
