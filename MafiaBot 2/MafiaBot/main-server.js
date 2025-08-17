@@ -176,12 +176,32 @@ app.get('/', (req, res) => {
 });
 
 // Запуск бота (только если задан токен) — удаляем вебхук на всякий случай и используем long polling
-if (bot) {
-    bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
-    bot.launch({ dropPendingUpdates: true })
-      .then(() => console.log('✅ Telegram bot connected successfully!'))
-      .catch(err => console.error('❌ Bot connection failed:', err));
+async function initBot() {
+  if (!bot) return;
+  try {
+    console.log('🤖 Initializing Telegram bot...');
+    await bot.telegram.deleteWebhook({ drop_pending_updates: true }).catch(() => {});
+
+    // Логирование ошибок
+    bot.catch((err, ctx) => {
+      console.error('❌ Bot error:', err.message || err, 'on update', ctx?.update?.update_id);
+    });
+
+    // Простейший лог входящих сообщений (для отладки)
+    bot.on('message', (ctx) => {
+      const from = ctx.from ? `${ctx.from.id}${ctx.from.username ? ' @'+ctx.from.username : ''}` : 'unknown';
+      console.log(`📨 Message from ${from}:`, ctx.message?.text || ctx.updateType);
+    });
+
+    await bot.launch({ dropPendingUpdates: true });
+    const me = await bot.telegram.getMe();
+    console.log(`✅ Telegram bot connected as @${me.username} (id=${me.id})`);
+  } catch (err) {
+    console.error('❌ Bot initialization failed:', err);
+  }
 }
+
+initBot();
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 Web server running on port ${PORT}`);
@@ -192,6 +212,17 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 console.log('🔌 Подключение API модуля...');
 app.use(apiApp); // Используем без префикса, так как в api.js уже есть /api
 console.log('✅ API модуль подключен к основному серверу');
+
+// Bot status endpoint (для быстрой диагностики)
+app.get('/api/bot/status', async (req, res) => {
+  if (!bot) return res.json({ ok: false, error: 'BOT_TOKEN not set' });
+  try {
+    const me = await bot.telegram.getMe();
+    return res.json({ ok: true, username: me.username, id: me.id });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 // Настройка WebSocket
 setupWebSocket(server);
