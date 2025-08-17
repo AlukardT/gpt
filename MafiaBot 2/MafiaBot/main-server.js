@@ -231,12 +231,12 @@ if (BOT_TOKEN) {
     const img = process.env.WELCOME_IMAGE_URL || assetUrl('Welcome.JPG') || assetUrl('welcome.jpg');
     if (img) {
       try {
-        await ctx.replyWithPhoto(img, { caption: welcomeText });
-        return ctx.reply('Выберите действие:', kb);
+        await ctx.replyWithPhoto(img, { caption: welcomeText, ...kb });
+        return;
       } catch {
         try {
-          await ctx.replyWithPhoto(Input.fromLocalFile(assetPath('Welcome.JPG')), { caption: welcomeText });
-          return ctx.reply('Выберите действие:', kb);
+          await ctx.replyWithPhoto(Input.fromLocalFile(assetPath('Welcome.JPG')), { caption: welcomeText, ...kb });
+          return;
         } catch {
           // Fallback на текст
           return ctx.reply(welcomeText, kb);
@@ -522,10 +522,10 @@ if (BOT_TOKEN) {
         const nick = p.nickname || p.username || 'Игрок';
         const real = p.realName || [p.firstName, p.lastName].filter(Boolean).join(' ') || '';
         const name = real ? `${nick} (${real})` : nick;
-        const href = p.username ? `https://t.me/${p.username}` : `tg://user?id=${r.userId}`;
-        return `• <a href="${escapeHtml(href)}">${escapeHtml(name)}</a>`;
+        const href = `tg://user?id=${r.userId}`;
+        return `• <a href=\"${escapeHtml(href)}\">${escapeHtml(name)}</a>`;
       });
-      await ctx.reply(`<b>Игроки события:</b>\n${lines.join('\n')}`, { parse_mode: 'HTML' });
+      await ctx.reply(`<b>Игроки события:</b>\n${lines.join('\n')}`, { parse_mode: 'HTML', disable_web_page_preview: true });
     } catch (e) {
       console.error('event_players error:', e);
       ctx.reply('Ошибка получения списка игроков');
