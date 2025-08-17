@@ -607,10 +607,27 @@ if (BOT_TOKEN) {
       }
 
       // Команды для меню Telegram
-      await bot.telegram.setMyCommands([
-        { command: 'start', description: 'Запуск и меню' },
-        { command: 'afisha', description: 'Афиши' }
-      ]).catch((e) => console.warn('⚠️ setMyCommands failed:', e.message));
+      try {
+        // Удаляем команды во всех популярных скоупах, чтобы очистить старое меню
+        await bot.telegram.deleteMyCommands().catch(() => {});
+        await bot.telegram.deleteMyCommands({ scope: { type: 'all_private_chats' } }).catch(() => {});
+        await bot.telegram.deleteMyCommands({ scope: { type: 'all_group_chats' } }).catch(() => {});
+        await bot.telegram.deleteMyCommands({ scope: { type: 'all_chat_administrators' } }).catch(() => {});
+
+        // Устанавливаем новое меню (по умолчанию)
+        await bot.telegram.setMyCommands([
+          { command: 'start', description: 'Запуск и меню' },
+          { command: 'afisha', description: 'Афиши' }
+        ]);
+
+        // Дублируем для приватных чатов на всякий случай
+        await bot.telegram.setMyCommands([
+          { command: 'start', description: 'Запуск и меню' },
+          { command: 'afisha', description: 'Афиши' }
+        ], { scope: { type: 'all_private_chats' } });
+      } catch (e) {
+        console.warn('⚠️ setMyCommands failed:', e.message);
+      }
 
       // Логирование ошибок и входящих сообщений
       bot.catch((err, ctx) => {

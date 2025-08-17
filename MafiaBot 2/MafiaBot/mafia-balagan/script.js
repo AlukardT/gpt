@@ -277,15 +277,21 @@ async function loadUpcomingEvent() {
     try {
         console.log('🔄 Загружаем ближайшее событие...');
         
-        const response = await fetch('/api/events/next');
-        if (!response.ok) {
-            throw new Error('Failed to fetch upcoming event');
-        }
-        
-        const e = await response.json();
+        let e = null;
+        try {
+            const r1 = await fetch('/api/events/next');
+            if (r1.ok) e = await r1.json();
+        } catch {}
         if (!e) {
-            showNoEventMessage();
-            return;
+            const r2 = await fetch('/api/events');
+            if (!r2.ok) throw new Error('Failed to fetch events');
+            const data2 = await r2.json();
+            const list = data2 && data2.ok && Array.isArray(data2.events) ? data2.events : [];
+            if (!list.length) {
+                showNoEventMessage();
+                return;
+            }
+            e = list[0];
         }
         
         currentUpcomingEvent = e;
