@@ -334,7 +334,7 @@ if (BOT_TOKEN) {
       const data = await resp.json();
       const p = data.profile || (data.ok && data.profile);
       if (!p) return ctx.reply('Профиль не найден. Отправьте /register для регистрации.');
-      const caption = `${p.nickname || p.username || '—'}`;
+      const caption = `${p.nickname || p.username || '—'}\nИгр сыграно: ${p.gamesPlayed ?? 0}`;
 
       let sent = false;
       if (p.avatarUrl) {
