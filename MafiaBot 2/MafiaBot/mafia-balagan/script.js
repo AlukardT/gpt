@@ -273,30 +273,30 @@ document.addEventListener('DOMContentLoaded', function() {
     initCenterActionsDelegation();
 });
 
-+function initCenterActionsDelegation() {
-+    if (window._centerActionsInited) return;
-+    window._centerActionsInited = true;
-+    const center = document.getElementById('centerActions');
-+    if (!center) return;
-+    center.addEventListener('click', (e) => {
-+        const btn = e.target.closest('button');
-+        if (!btn) return;
-+        const action = btn.dataset.action;
-+        if (!action) return;
-+        if (action === 'start-voting') {
-+            try { startVoting(); } catch (err) { console.error('startVoting failed:', err); }
-+        } else if (action === 'skip-vote') {
-+            try { skipVote(); } catch (err) { console.error('skipVote failed:', err); }
-+        } else if (action === 'pause-resume') {
-+            try { pauseResumeTimer(); } catch (err) { console.error('pauseResumeTimer failed:', err); }
-+        } else if (action === 'adjust-time') {
-+            const delta = parseInt(btn.dataset.delta || '0', 10);
-+            try { adjustTime(delta); } catch (err) { console.error('adjustTime failed:', err); }
-+        } else if (action === 'count-votes') {
-+            try { countVotes(); } catch (err) { console.error('countVotes failed:', err); }
-+        }
-+    });
-+}
+function initCenterActionsDelegation() {
+    if (window._centerActionsInited) return;
+    window._centerActionsInited = true;
+    const center = document.getElementById('centerActions');
+    if (!center) return;
+    center.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const action = btn.dataset.action;
+        if (!action) return;
+        if (action === 'start-voting') {
+            try { startVoting(); } catch (err) { console.error('startVoting failed:', err); }
+        } else if (action === 'skip-vote') {
+            try { skipVote(); } catch (err) { console.error('skipVote failed:', err); }
+        } else if (action === 'pause-resume') {
+            try { pauseResumeTimer(); } catch (err) { console.error('pauseResumeTimer failed:', err); }
+        } else if (action === 'adjust-time') {
+            const delta = parseInt(btn.dataset.delta || '0', 10);
+            try { adjustTime(delta); } catch (err) { console.error('adjustTime failed:', err); }
+        } else if (action === 'count-votes') {
+            try { countVotes(); } catch (err) { console.error('countVotes failed:', err); }
+        }
+    });
+}
 
 // Load upcoming event from API
 async function loadUpcomingEvent() {
