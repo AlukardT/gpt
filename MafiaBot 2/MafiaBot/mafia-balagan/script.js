@@ -270,7 +270,33 @@ document.addEventListener('DOMContentLoaded', function() {
     addHistoryEntry('🎮 Мини-приложение Наша Мафия загружено');
     updateGameInstructions();
     loadUpcomingEvent(); // Load upcoming event from bot
+    initCenterActionsDelegation();
 });
+
++function initCenterActionsDelegation() {
++    if (window._centerActionsInited) return;
++    window._centerActionsInited = true;
++    const center = document.getElementById('centerActions');
++    if (!center) return;
++    center.addEventListener('click', (e) => {
++        const btn = e.target.closest('button');
++        if (!btn) return;
++        const action = btn.dataset.action;
++        if (!action) return;
++        if (action === 'start-voting') {
++            try { startVoting(); } catch (err) { console.error('startVoting failed:', err); }
++        } else if (action === 'skip-vote') {
++            try { skipVote(); } catch (err) { console.error('skipVote failed:', err); }
++        } else if (action === 'pause-resume') {
++            try { pauseResumeTimer(); } catch (err) { console.error('pauseResumeTimer failed:', err); }
++        } else if (action === 'adjust-time') {
++            const delta = parseInt(btn.dataset.delta || '0', 10);
++            try { adjustTime(delta); } catch (err) { console.error('adjustTime failed:', err); }
++        } else if (action === 'count-votes') {
++            try { countVotes(); } catch (err) { console.error('countVotes failed:', err); }
++        }
++    });
++}
 
 // Load upcoming event from API
 async function loadUpcomingEvent() {
@@ -1112,7 +1138,7 @@ function updateCenterPanel() {
             }
             break;
         case 'day':
-            buttons = '<button class="center-action-btn primary" onclick="startVoting()">🗳️ Начать голосование</button>';
+            buttons = '<button id="btn-start-voting" class="center-action-btn primary" data-action="start-voting" onclick="startVoting()">🗳️ Начать голосование</button>';
             break;
         case 'voting':
             const alivePlayers = gameState.players.filter(p => p.status === 'alive');
@@ -1147,10 +1173,10 @@ function updateCenterPanel() {
                             </div>
                         </div>
                         <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;">
-                            <button class="center-action-btn small" onclick="skipVote()">⏭️ Пропустить</button>
-                            <button class="center-action-btn small" onclick="pauseResumeTimer()">${gameState.voting.timer.running ? '⏸️ Пауза' : '▶️ Продолжить'}</button>
-                            <button class="center-action-btn small" onclick="adjustTime(-30000)">-30с</button>
-                            <button class="center-action-btn small" onclick="adjustTime(30000)">+30с</button>
+                            <button class="center-action-btn small" data-action="skip-vote" onclick="skipVote()">⏭️ Пропустить</button>
+                            <button class="center-action-btn small" data-action="pause-resume" onclick="pauseResumeTimer()">${gameState.voting.timer.running ? '⏸️ Пауза' : '▶️ Продолжить'}</button>
+                            <button class="center-action-btn small" data-action="adjust-time" data-delta="-30000" onclick="adjustTime(-30000)">-30с</button>
+                            <button class="center-action-btn small" data-action="adjust-time" data-delta="30000" onclick="adjustTime(30000)">+30с</button>
                         </div>
                     `;
                 } else {
@@ -1161,7 +1187,7 @@ function updateCenterPanel() {
                 // Все проголосовали — подсчет результатов
                 buttons = statusLine + `
                     <div style="text-align: center; margin-top: 10px;">
-                        <button class="center-action-btn primary" onclick="countVotes()">📊 Подсчитать голоса</button>
+                        <button class="center-action-btn primary" data-action="count-votes" onclick="countVotes()">📊 Подсчитать голоса</button>
                     </div>
                 `;
             }
