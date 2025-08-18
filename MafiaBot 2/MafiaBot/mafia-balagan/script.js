@@ -1125,6 +1125,9 @@ function updateCenterPanel() {
                 Голосование — День ${gameState.dayNumber} | Живы: ${alivePlayers.length} | Мафия: ${mafiaCount} | Проголосовали: ${votedCount}/${alivePlayers.length}
             </div>`;
             
+            // Обновим левый счетчик голосов при каждом рендере панели
+            setTimeout(updateVoteSummaryPanel, 0);
+            
             if (gameState.voting.currentVoterIdx < gameState.voting.order.length) {
                 const currentVoterId = gameState.voting.order[gameState.voting.currentVoterIdx];
                 const currentVoter = gameState.players.find(p => p.id === currentVoterId);
@@ -1148,18 +1151,19 @@ function updateCenterPanel() {
                             <button class="center-action-btn small" onclick="pauseResumeTimer()">${gameState.voting.timer.running ? '⏸️ Пауза' : '▶️ Продолжить'}</button>
                             <button class="center-action-btn small" onclick="adjustTime(-30000)">-30с</button>
                             <button class="center-action-btn small" onclick="adjustTime(30000)">+30с</button>
-                            <button class="center-action-btn small" onclick="resetVotingTimer()">🔄 2:00</button>
                         </div>
                     `;
                 } else {
-                    buttons = statusLine;
+                    // Следующий
+                    nextVoter();
                 }
             } else {
-                buttons = statusLine;
-            }
-            
-            if (allVoted) {
-                buttons += '<div style="margin-top: 10px;"><button class="center-action-btn primary pulse" onclick="countVotes()">📊 Подсчитать голоса</button></div>';
+                // Все проголосовали — подсчет результатов
+                buttons = statusLine + `
+                    <div style="text-align: center; margin-top: 10px;">
+                        <button class="center-action-btn primary" onclick="countVotes()">📊 Подсчитать голоса</button>
+                    </div>
+                `;
             }
             break;
         case 'night':
