@@ -1286,6 +1286,7 @@ function startVoting() {
     updateVisualVoting();
     updateCenterPanel();
     scheduleSave(); // Автосохранение при старте голосования
+    updateVoteSummaryPanel();
 }
 
 function startCurrentVoterTurn() {
@@ -1342,6 +1343,7 @@ function handleVoteClick(targetId) {
         gameState.voting.votes[voterId] = targetId;
         addLogEntry('Голос подан', `${voter.name} голосует против ${target.name}`);
         scheduleSave(); // Автосохранение при подаче голоса
+        updateVoteSummaryPanel();
         nextVoter();
     });
 }
@@ -1381,6 +1383,7 @@ function nextVoter() {
     stopVotingTimer();
     gameState.voting.currentVoterIdx++;
     startCurrentVoterTurn();
+    updateVoteSummaryPanel();
 }
 
 function skipVote() {
@@ -1394,6 +1397,7 @@ function skipVote() {
         addLogEntry('Голос пропущен', `${voter.name} воздержался`);
         nextVoter();
     }
+    updateVoteSummaryPanel();
 }
 
 function countVotes() {
@@ -1497,6 +1501,8 @@ function endVoting() {
     setGamePhase('results');
     updateVisualVoting(); // Очистить визуальные эффекты
     updateCenterPanel();
+    const panel = document.getElementById('vote-summary-panel');
+    if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
 }
 
 // НОВЫЙ ПРОСТОЙ ТАЙМЕР С ВИЗУАЛЬНЫМ ОБНОВЛЕНИЕМ
@@ -4591,4 +4597,75 @@ function updateVoteSummary() {
     }).join('');
     panel.style.display = 'block';
     panel.innerHTML = `<div class="vote-summary-title">Голоса</div>${lines}`;
+}
+
+// Подрывник — поддержать минирование 3-5 целей за ночь и «переминирование» спустя 3 хода
+let bomberNightMines = new Map(); // nightNumber -> Set of targetIds
+let bomberRearmCounter = 0; // ходы до возможного переминирования
+
+// В начале ночи сбрасываем ночные минирования
+const _origStartNightPhase = typeof startNightPhase === 'function' ? startNightPhase : null;
+if (_origStartNightPhase) {
+    window.startNightPhase = function() {
+        bomberNightMines.set(gameState.nightNumber, new Set());
+        if (bomberRearmCounter > 0) bomberRearmCounter--;
+        return _origStartNightPhase.call(this);
+    };
+}
+
+// Разрешаем бомбера минировать 3-5 игроков за ночь
+function canBomberMineMoreThisNight() {
+    const set = bomberNightMines.get(gameState.nightNumber) || new Set();
+    return set.size < 5; // максимум 5
+}
+
+function registerBomberMineThisNight(targetId) {
+    let set = bomberNightMines.get(gameState.nightNumber);
+    if (!set) {
+        set = new Set();
+        bomberNightMines.set(gameState.nightNumber, set);
+    }
+    set.add(targetId);
+}
+
+// Перехватываем применение действия бомбера для учёта лимита и переминирования
+const _origApplyNightAction = applyNightAction;
+window.applyNightAction = function(roleType, targetId) {
+    if (roleType === 'bomber') {
+        // Ограничение 3-5 целей за ночь: не даём больше 5, разрешаем минимум 3 — UI не принуждаем, но лог ограничит до 5
+        if (!canBomberMineMoreThisNight()) {
+            showToast('info', '💣', 'Лимит минирований на ночь достигнут (5)');
+            return;
+        }
+        registerBomberMineThisNight(targetId);
+        bomberRearmCounter = Math.max(bomberRearmCounter, 3); // через 3 хода можно переминировать
+    }
+    return _origApplyNightAction.call(this, roleType, targetId);
+};
+
+// Разрешаем «переминировать» после истечения трёх ходов (дней)
+const _origStartNewDay = typeof startNewDay === 'function' ? startNewDay : null;
+if (_origStartNewDay) {
+    window.startNewDay = function() {
+        if (bomberRearmCounter > 0) bomberRearmCounter--;
+        return _origStartNewDay.call(this);
+    };
+}
+
+// Валидация цели бомбера: если старая мина есть и не прошло 3 хода — запрещаем «переминировать» того же игрока
+const _origIsValidTarget = typeof isValidTarget === 'function' ? isValidTarget : null;
+if (_origIsValidTarget) {
+    window.isValidTarget = function(roleKey, player) {
+        const res = _origIsValidTarget.call(this, roleKey, player) || { valid: true };
+        if (roleKey === 'bomber') {
+            if (player.effects?.mined && bomberRearmCounter > 0) {
+                return { valid: false, reason: 'Переминировать можно через 3 хода' };
+            }
+            const set = bomberNightMines.get(gameState.nightNumber) || new Set();
+            if (set.size >= 5 && !set.has(player.id)) {
+                return { valid: false, reason: 'Лимит минирований этой ночью' };
+            }
+        }
+        return res;
+    };
 }
