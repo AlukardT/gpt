@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { db } = require('./db.js');
-const { eq, desc, asc } = require('drizzle-orm');
+const { eq, desc, asc, inArray } = require('drizzle-orm');
 // Import all needed tables from the schema.  Note: eventRegistrations was missing previously
 // which caused a ReferenceError when fetching registrations.
 const { userProfiles, events, eventRegistrations, activeGames } = require('../shared/schema.js');
@@ -247,6 +247,82 @@ app.get('/api/events/next', async (req, res) => {
   }
 });
 
+// ── BALAGAN compatibility endpoint ──
+// Returns game bootstrap data for a given event: players built from registrations and profiles
+app.get('/api/balagan/game/:eventId', async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId);
+    if (Number.isNaN(eventId)) {
+      return bad(res, 400, 'Invalid eventId');
+    }
+
+    const [ev] = await db.select().from(events).where(eq(events.id, eventId));
+    if (!ev) return bad(res, 404, 'Event not found');
+
+    const regs = await db.select().from(eventRegistrations).where(eq(eventRegistrations.eventId, eventId));
+    const userIds = Array.from(new Set(regs.map(r => String(r.userId))));
+    let profilesById = {};
+    if (userIds.length > 0) {
+      const profs = await db
+        .select()
+        .from(userProfiles)
+        .where(inArray(userProfiles.id, userIds));
+      profilesById = Object.fromEntries(profs.map(p => [String(p.id), p]));
+    }
+
+    const players = [];
+    let seat = 1;
+    for (const r of regs) {
+      const profile = profilesById[String(r.userId)] || null;
+      const playerCount = Math.max(1, parseInt(r.playerCount || 1));
+      for (let i = 0; i < playerCount; i++) {
+        const baseName = profile?.nickname || (r.username ? `@${r.username}` : 'Игрок');
+        const name = i === 0 ? baseName : `${baseName}+${i}`;
+        players.push({
+          id: players.length + 1,
+          name,
+          displayName: profile?.realName || profile?.nickname || r.username || null,
+          nickname: profile?.nickname || null,
+          realName: profile?.realName || null,
+          username: r.username || null,
+          telegramId: String(r.userId),
+          avatarUrl: profile?.avatarUrl || null,
+          seatNumber: seat++,
+          role: null,
+          status: 'alive'
+        });
+      }
+    }
+
+    // Derive phase/isActive from latest active game for this event if exists
+    let phase = 'setup';
+    let isActive = false;
+    try {
+      const active = await db
+        .select()
+        .from(activeGames)
+        .where(eq(activeGames.eventId, eventId))
+        .orderBy(desc(activeGames.createdAt))
+        .limit(1);
+      if (active && active[0]) {
+        phase = active[0].phase || phase;
+        isActive = !!active[0].isActive;
+      }
+    } catch {}
+
+    return res.json({
+      eventId,
+      title: ev.title,
+      players,
+      phase,
+      isActive
+    });
+  } catch (error) {
+    console.error('Error fetching balagan game data:', error);
+    return bad(res, 500, 'Database error');
+  }
+});
+
 // Добавляем недостающие endpoints для совместимости с веб-приложением
 app.get('/api/games/active', publicAuth, async (req, res) => {
   try {
@@ -254,7 +330,8 @@ app.get('/api/games/active', publicAuth, async (req, res) => {
     if (!activeGame) {
       return res.json(null);
     }
-    return res.json(activeGame);
+    // Return raw gameState for frontend compatibility
+    return res.json(activeGame.gameData || activeGame);
   } catch (error) {
     console.error('Error fetching active game:', error);
     return bad(res, 500, 'Database error');
@@ -263,24 +340,33 @@ app.get('/api/games/active', publicAuth, async (req, res) => {
 
 app.post('/api/games/:id/save', publicAuth, async (req, res) => {
   try {
-    const gameId = req.params.id;
-    const gameData = req.body;
-    
-    await db.insert(activeGames)
-      .values({
-        id: gameId,
-        ...gameData,
-        updatedAt: new Date()
-      })
-      .onConflictDoUpdate({
-        target: activeGames.id,
-        set: {
-          ...gameData,
-          updatedAt: new Date()
-        }
+    const gameId = req.params.id; // external string id supplied by frontend (not used as PK)
+    const gameState = req.body || {};
+
+    // Try to find an existing active game row; if present, update it; otherwise create one
+    const [existing] = await db.select().from(activeGames).limit(1);
+    const now = new Date();
+    if (existing) {
+      await db.update(activeGames)
+        .set({
+          gameData: { ...gameState, id: gameState.id || gameId },
+          phase: gameState.phase || existing.phase,
+          isActive: gameState.phase !== 'finished',
+          lastUpdated: now
+        })
+        .where(eq(activeGames.id, existing.id));
+    } else {
+      await db.insert(activeGames).values({
+        eventId: gameState.eventId || null,
+        phase: gameState.phase || 'setup',
+        isActive: gameState.phase !== 'finished',
+        gameData: { ...gameState, id: gameState.id || gameId },
+        createdAt: now,
+        lastUpdated: now
       });
-    
-    return ok(res, { updatedAt: new Date().toISOString() });
+    }
+
+    return ok(res, { updatedAt: now.toISOString() });
   } catch (error) {
     console.error('Error saving game:', error);
     return bad(res, 500, 'Database error');
