@@ -1291,6 +1291,8 @@ function startVoting() {
     updateCenterPanel();
     scheduleSave(); // Автосохранение при старте голосования
     updateVoteSummaryPanel();
+    // Форсируем отрисовку мест и повторную установку классов после центра
+    updatePlayerTable();
 }
 
 function startCurrentVoterTurn() {
@@ -2451,6 +2453,10 @@ function updatePlayerTable() {
     
     // Apply night phase styling to table container
     updateNightPhaseHighlighting();
+    // Применяем визуальные классы голосования после отрисовки мест
+    if (gameState.phase === 'voting') {
+        updateVisualVoting();
+    }
 }
 
 function selectPlayer(playerId) {

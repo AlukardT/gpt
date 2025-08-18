@@ -2196,3 +2196,7 @@ body {
 	justify-content: space-between;
 	margin: 4px 0;
 }
+
+/* Enable voting timers visuals */
+.voting-timer-ring { display: block !important; }
+.voting-timer-text { display: block !important; }
