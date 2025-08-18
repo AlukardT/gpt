@@ -2171,3 +2171,28 @@ body {
 .vote-summary-row .name { font-size: 12px; }
 .vote-summary-row .count { font-weight: 700; color: #2ed573; }
 .vote-summary-empty { font-size: 12px; opacity: 0.8; }
+
+/* Vote summary panel */
+#vote-summary-panel {
+	position: absolute;
+	left: 10px;
+	top: 120px;
+	width: 220px;
+	background: rgba(0,0,0,0.7);
+	border: 1px solid #444;
+	border-radius: 8px;
+	padding: 10px;
+	z-index: 1001;
+	color: #fff;
+	font-size: 14px;
+}
+#vote-summary-panel .title {
+	font-weight: 700;
+	margin-bottom: 6px;
+	color: #f1f2f6;
+}
+#vote-summary-panel .row {
+	display: flex;
+	justify-content: space-between;
+	margin: 4px 0;
+}
