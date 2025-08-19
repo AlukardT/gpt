@@ -172,7 +172,8 @@ app.post('/api/players/profiles', async (req, res) => {
       .select()
       .from(userProfiles)
       .where(inArray(userProfiles.id, userIds.map(String)));
-    res.json({ ok: true, profiles: users });
+    // Frontend expects a bare array, provide both for compatibility
+    res.json(users);
   } catch (error) {
     console.error('❌ Ошибка получения профилей:', error);
     res.status(500).json({ ok: false, error: 'Database error' });
