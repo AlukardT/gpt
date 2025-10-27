@@ -230,6 +230,15 @@ console.log('👑 Admin ID value:', process.env.ADMIN_TELEGRAM_ID);
 // Добавляем express.json middleware для обработки JSON запросов
 app.use(express.json());
 
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Удалены локальные дубли API (/api/players/register, /api/players/:id, /api/events, /api/events GET, /api/events/:eventId/registrations)
 
 // Оставляем специальный endpoint, которого нет в server/api.js

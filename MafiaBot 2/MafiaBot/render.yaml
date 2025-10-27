@@ -2,23 +2,27 @@ databases:
 - name: mafia-postgres
   databaseName: mafia
   user: mafia
+  plan: free
 
 services:
 - type: web
   name: mafia-bot-web
   runtime: node
   plan: free
-  buildCommand: npm install --no-audit --no-fund
-  startCommand: node main-server.js
+  buildCommand: npm ci --only=production
+  startCommand: npm start
   autoDeploy: true
+  healthCheckPath: /health
   envVars:
   - key: DATABASE_URL
     fromDatabase:
       name: mafia-postgres
       property: connectionString
   - key: ADMIN_TOKEN
-    value: admin-secret
+    generateValue: true
   - key: BOT_TOKEN_INTERNAL
-    value: bot-secret
+    generateValue: true
   - key: NODE_ENV
     value: production
+  - key: PORT
+    value: 10000
