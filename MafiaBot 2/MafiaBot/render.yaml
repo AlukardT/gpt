@@ -9,7 +9,7 @@ services:
   runtime: node
   plan: free
   buildCommand: npm install --no-audit --no-fund
-  startCommand: node main-server.js
+  startCommand: npm start
   autoDeploy: true
   envVars:
   - key: DATABASE_URL
@@ -22,3 +22,25 @@ services:
     value: bot-secret
   - key: NODE_ENV
     value: production
+  - key: PORT
+    value: 10000
+  - key: BOT_TOKEN
+    sync: false
+  - key: GOOGLE_CLOUD_PROJECT_ID
+    sync: false
+  - key: GOOGLE_CLOUD_PRIVATE_KEY_ID
+    sync: false
+  - key: GOOGLE_CLOUD_PRIVATE_KEY
+    sync: false
+  - key: GOOGLE_CLOUD_CLIENT_EMAIL
+    sync: false
+  - key: GOOGLE_CLOUD_CLIENT_ID
+    sync: false
+  - key: GOOGLE_CLOUD_AUTH_URI
+    sync: false
+  - key: GOOGLE_CLOUD_TOKEN_URI
+    sync: false
+  - key: GOOGLE_CLOUD_AUTH_PROVIDER_X509_CERT_URL
+    sync: false
+  - key: GOOGLE_CLOUD_CLIENT_X509_CERT_URL
+    sync: false
